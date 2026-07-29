@@ -28,13 +28,31 @@ const STARTER_TEMPLATES: Record<SupportedLanguage, string> = {
   javascript: `function solution(input) {\n  // Symphosium JavaScript Engine\n  console.log("Processing input:", input);\n  return "Execution Complete";\n}\n\nsolution("Test Payload");`
 };
 
-export default function MonacoPlayground() {
+interface MonacoPlaygroundProps {
+  language?: string;
+  initialCode?: string;
+  onChange?: (val: string) => void;
+  timeLimitSec?: number;
+  onRunComplete?: (result: any) => void;
+}
+
+export default function MonacoPlayground({
+  language: initialLanguage,
+  initialCode,
+  onChange,
+  timeLimitSec,
+  onRunComplete
+}: MonacoPlaygroundProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Language & Theme State
-  const [language, setLanguage] = useState<SupportedLanguage>('javascript');
+  const [language, setLanguage] = useState<SupportedLanguage>(
+    (initialLanguage && ['c', 'cpp', 'java', 'python', 'javascript'].includes(initialLanguage))
+      ? (initialLanguage as SupportedLanguage)
+      : 'javascript'
+  );
   const [theme, setTheme] = useState<'vs-dark' | 'light'>('vs-dark');
-  const [code, setCode] = useState<string>(STARTER_TEMPLATES.javascript);
+  const [code, setCode] = useState<string>(initialCode || STARTER_TEMPLATES.javascript);
   
   // Custom Stdin Input & Stdout Output Panels
   const [customInput, setCustomInput] = useState<string>('Test Input Data 100');

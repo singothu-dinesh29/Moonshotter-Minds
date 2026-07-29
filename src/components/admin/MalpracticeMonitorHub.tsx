@@ -62,6 +62,7 @@ export default function MalpracticeMonitorHub() {
   const [auditLogs, setAuditLogs] = useState<AuditActionLog[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
 
   // Filters
   const [searchStudent, setSearchStudent] = useState('');

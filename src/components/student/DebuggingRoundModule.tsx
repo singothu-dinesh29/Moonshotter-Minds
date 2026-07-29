@@ -206,7 +206,7 @@ export default function DebuggingRoundModule() {
             </h4>
 
             <div className="space-y-2.5 flex-1">
-              {questionSpec.coding.test_cases.map((tc, idx) => (
+              {questionSpec.coding.test_cases.map((tc: any, idx: number) => (
                 <div key={idx} className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs font-mono space-y-1">
                   <div className="text-slate-400">Test Input #{idx + 1}: <span className="text-slate-200">{tc.input}</span></div>
                   <div className="text-slate-400">Expected Output: <span className="text-emerald-400 font-bold">{tc.expected_output}</span></div>

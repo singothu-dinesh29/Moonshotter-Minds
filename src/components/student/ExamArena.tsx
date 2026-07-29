@@ -221,7 +221,7 @@ export default function ExamArena() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                  {q.options.map((opt) => {
+                  {q.options.map((opt: any) => {
                     const isSelected = mcqAnswers[q.id] === opt.id;
                     return (
                       <button
@@ -264,7 +264,7 @@ export default function ExamArena() {
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex-1 flex flex-col">
                 <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Target Test Matrix</h4>
                 <div className="space-y-2 flex-1">
-                  {MOCK_DEBUG_QUESTION.coding.test_cases.map((tc, idx) => (
+                  {MOCK_DEBUG_QUESTION.coding.test_cases.map((tc: any, idx: number) => (
                     <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono space-y-1">
                       <div className="text-slate-400">Input: <span className="text-slate-200">{tc.input}</span></div>
                       <div className="text-slate-400">Expected: <span className="text-emerald-400">{tc.expected_output}</span></div>
