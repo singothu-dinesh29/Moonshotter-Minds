@@ -135,8 +135,8 @@ export default function HeroSlider() {
               transition={{ duration: 0.6 }}
               className="space-y-1"
             >
-              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight uppercase font-sans leading-none drop-shadow-lg">
-                <span className="text-amber-400 text-yellow-400 block pb-1">{currentSlide.yellowName}</span>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif font-bold tracking-tight uppercase leading-tight drop-shadow-xl">
+                <span className="text-[#E5C158] block pb-1">{currentSlide.yellowName}</span>
                 <span className="text-white block">{currentSlide.whiteName}</span>
               </h2>
             </motion.div>
@@ -152,10 +152,10 @@ export default function HeroSlider() {
               transition={{ duration: 0.6, delay: 0.1 }}
               className="space-y-3"
             >
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-indigo-300 tracking-wider uppercase font-sans">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-amber-200 tracking-wider uppercase">
                 {currentSlide.eventTitle}
               </h1>
-              <p className="text-sm sm:text-base text-slate-200 leading-relaxed max-w-2xl font-sans text-shadow">
+              <p className="text-sm sm:text-base text-slate-200 leading-relaxed max-w-2xl font-sans">
                 {currentSlide.subtitle}
               </p>
             </motion.div>
@@ -166,14 +166,14 @@ export default function HeroSlider() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.2 }}
-            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2"
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-4"
           >
             <Link
               href="/register"
               aria-label="Enter Symposium 2026 Registration"
-              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/25 hover:shadow-amber-500/50 hover:scale-[1.02] transition-all"
+              className="inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-full bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-sm shadow-xl shadow-emerald-950/40 border border-emerald-500/30 hover:scale-[1.03] transition-all"
             >
-              <UserPlus className="h-4 w-4" />
+              <UserPlus className="h-4 w-4 text-amber-300" />
               <span>Enter Symposium</span>
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -181,9 +181,9 @@ export default function HeroSlider() {
             <Link
               href="/#about"
               aria-label="View Event Details"
-              className="inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-100 font-bold text-sm border border-slate-700/90 backdrop-blur-md transition-all shadow-lg"
+              className="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-full bg-[#0F192C]/90 hover:bg-[#182640] text-slate-100 font-medium text-sm border border-[#D4AF37]/30 hover:border-[#D4AF37]/60 backdrop-blur-md transition-all shadow-lg hover:scale-[1.02]"
             >
-              <Info className="h-4 w-4 text-cyan-400" />
+              <Info className="h-4 w-4 text-amber-400" />
               <span>View Event Details</span>
             </Link>
           </motion.div>

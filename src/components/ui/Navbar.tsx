@@ -69,27 +69,27 @@ export default function Navbar() {
     <header 
       className={`sticky top-0 z-50 transition-all duration-300 ${
         isScrolled 
-          ? 'bg-slate-950/85 backdrop-blur-md border-b border-slate-800/80 shadow-2xl py-3' 
-          : 'bg-transparent border-b border-transparent py-4'
+          ? 'bg-[#0A111E]/95 backdrop-blur-md border-b border-[#D4AF37]/20 shadow-2xl py-3' 
+          : 'bg-[#0A111E]/80 backdrop-blur-sm border-b border-[#D4AF37]/10 py-4'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 lg:px-8 flex items-center justify-between">
         
         {/* BRAND LOGO */}
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-amber-500 via-indigo-600 to-cyan-500 p-0.5 shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
-            <div className="h-full w-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-[#B8860B] via-[#D4AF37] to-[#15803D] p-0.5 shadow-lg shadow-[#D4AF37]/15 group-hover:scale-105 transition-transform">
+            <div className="h-full w-full bg-[#0A111E] rounded-[10px] flex items-center justify-center">
               <Terminal className="h-5 w-5 text-amber-400" />
             </div>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-xl tracking-tight text-white">SYMPHOSIUM</span>
-              <span className="text-[10px] font-mono tracking-widest px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hidden sm:inline">
+              <span className="font-serif font-extrabold text-xl tracking-tight text-white">SYMPHOSIUM</span>
+              <span className="text-[10px] font-mono tracking-widest px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 hidden sm:inline">
                 2026
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 font-mono hidden sm:block">Muthayammal Engineering College</p>
+            <p className="text-[11px] text-slate-300 font-sans hidden sm:block">Muthayammal Engineering College</p>
           </div>
         </Link>
 
@@ -102,15 +102,15 @@ export default function Navbar() {
                 key={link.name}
                 href={link.href}
                 onClick={(e) => handleNavClick(e, link.href, link.name)}
-                className={`relative text-xs font-semibold tracking-wide transition-colors py-1 ${
-                  isActive ? 'text-white' : 'text-slate-300 hover:text-white'
+                className={`relative text-xs font-medium tracking-wide transition-colors py-1 ${
+                  isActive ? 'text-amber-300 font-semibold' : 'text-slate-300 hover:text-amber-200'
                 }`}
               >
                 {link.name}
                 {isActive && (
                   <motion.span
                     layoutId="nav-underline"
-                    className="absolute left-0 bottom-0 w-full h-[2px] bg-gradient-to-r from-amber-400 to-indigo-500 rounded-full"
+                    className="absolute left-0 bottom-0 w-full h-[2px] bg-gradient-to-r from-[#D4AF37] to-[#15803D] rounded-full"
                     transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                   />
                 )}
@@ -124,17 +124,17 @@ export default function Navbar() {
 
           <Link
             href="/login"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold border border-slate-700/80 transition-all"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0F192C] hover:bg-[#182640] text-slate-200 text-xs font-medium border border-[#D4AF37]/30 transition-all hover:border-[#D4AF37]/60"
           >
-            <LogIn className="h-3.5 w-3.5 text-cyan-400" />
+            <LogIn className="h-3.5 w-3.5 text-amber-400" />
             <span>Login</span>
           </Link>
 
           <Link
             href="/register"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-slate-950 font-black text-xs transition-all shadow-lg shadow-amber-500/20"
+            className="flex items-center gap-1.5 px-5 py-2 rounded-full bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-xs transition-all shadow-md shadow-emerald-900/30 border border-emerald-500/30 hover:scale-105"
           >
-            <UserPlus className="h-3.5 w-3.5" />
+            <UserPlus className="h-3.5 w-3.5 text-amber-300" />
             <span>Register</span>
           </Link>
         </div>

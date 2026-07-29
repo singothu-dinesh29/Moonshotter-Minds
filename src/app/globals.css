@@ -7,38 +7,97 @@ html {
 @tailwind utilities;
 
 :root {
-  --background: 222.2 84% 4.9%;
+  --background: 222 47% 7%;
   --foreground: 210 40% 98%;
-  --card: 222.2 84% 7.9%;
+  --card: 222 47% 10%;
   --card-foreground: 210 40% 98%;
 }
 
 body {
-  background-color: #090d16;
-  color: #f8fafc;
-  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  background-color: #0A111E;
+  color: #F8FAFC;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
 }
 
-/* Custom Glassmorphism Utility */
+/* Modern University Typography Classes */
+h1, h2, h3, .font-academic {
+  font-family: 'Playfair Display', 'Merriweather', 'Cinzel', Georgia, serif;
+}
+
+/* Custom Academic Gold Text Gradient */
+.academic-gold-text {
+  background: linear-gradient(135deg, #FCE879 0%, #D4AF37 50%, #B8860B 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Custom Academic Glass Card */
+.academic-card {
+  background: rgba(15, 25, 44, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(212, 175, 55, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.academic-card:hover {
+  border-color: rgba(212, 175, 55, 0.45);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 25px rgba(212, 175, 55, 0.12);
+  transform: translateY(-3px);
+}
+
+/* Legacy Glassmorphism backward-compatibility */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 25, 44, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.18);
 }
 
 .glass-panel-glow {
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 25, 44, 0.92);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  box-shadow: 0 0 25px rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  box-shadow: 0 0 25px rgba(212, 175, 55, 0.15);
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #6366f1 0%, #06b6d4 50%, #a855f7 100%);
+  background: linear-gradient(135deg, #FFF 0%, #D4AF37 60%, #E5C158 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Custom Academic Buttons */
+.academic-btn-primary {
+  background: linear-gradient(135deg, #15803D 0%, #166534 100%);
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 14px rgba(21, 128, 61, 0.35);
+  transition: all 0.25s ease;
+}
+
+.academic-btn-primary:hover {
+  background: linear-gradient(135deg, #16A34A 0%, #15803D 100%);
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.45);
+  transform: translateY(-2px);
+}
+
+.academic-btn-gold {
+  background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%);
+  color: #0A111E;
+  font-weight: 700;
+  border-radius: 9999px;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.35);
+  transition: all 0.25s ease;
+}
+
+.academic-btn-gold:hover {
+  background: linear-gradient(135deg, #E5C158 0%, #D4AF37 100%);
+  box-shadow: 0 6px 20px rgba(229, 193, 88, 0.45);
+  transform: translateY(-2px);
 }
 
 /* Custom Scrollbars */
@@ -48,14 +107,14 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: #0A111E;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #1E293B;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #D4AF37;
 }
