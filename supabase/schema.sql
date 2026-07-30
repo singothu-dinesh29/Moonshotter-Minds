@@ -393,8 +393,15 @@ ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cheating_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leaderboard ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 
--- Basic Public RLS Policy Examples
+-- Basic RLS Policy Definitions
 CREATE POLICY "Public profiles are viewable by everyone" ON public.users FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own submissions" ON public.submissions FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "Leaderboard viewable by all authenticated users" ON public.leaderboard FOR SELECT USING (true);
+
+-- Questions Table RLS Policies: Allow Read to All, Allow Full Management to Admins
+CREATE POLICY "Allow public select access to questions" ON public.questions FOR SELECT USING (true);
+CREATE POLICY "Allow admin insert access to questions" ON public.questions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow admin update access to questions" ON public.questions FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow admin delete access to questions" ON public.questions FOR DELETE USING (true);

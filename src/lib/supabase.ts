@@ -19,8 +19,8 @@ export type {
   CheatingLogRecord
 };
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rmorfjubnpplfqjdfisa.supabase.co';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_B7haRoKT-yVPDiYGjXpolw_WSPZ26JJ';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
