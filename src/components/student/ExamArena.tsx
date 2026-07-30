@@ -317,7 +317,18 @@ export default function ExamArena() {
         });
       }
 
-      const completionSec = Math.max(1, (45 * 60) - secondsRemaining);
+      // Calculate exact completion duration = submitted_at - started_at
+      const submittedAt = new Date().toISOString();
+      let completionSec = 0;
+
+      const activeSession = getActiveExamSession(studentId);
+      if (activeSession && activeSession.startTime) {
+        const startMs = new Date(activeSession.startTime).getTime();
+        const submitMs = new Date(submittedAt).getTime();
+        completionSec = Math.max(1, Math.floor((submitMs - startMs) / 1000));
+      } else {
+        completionSec = Math.max(1, (45 * 60) - secondsRemaining);
+      }
 
       // 4. Save dynamic scorecard locally & sync to Supabase
       const sc = saveDynamicScorecard({

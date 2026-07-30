@@ -66,11 +66,13 @@ export async function startExamSession(
   }
 
   try {
+    const regId = `reg-${studentId}`;
     await supabase.from('registrations').upsert({
-      id: 'reg-candidate-942',
+      id: regId,
       user_id: studentId,
       event_id: eventId,
       status: 'IN_PROGRESS',
+      started_at: startTime,
       exam_start_time: startTime,
       exam_end_time: endTime,
       updated_at: new Date().toISOString()

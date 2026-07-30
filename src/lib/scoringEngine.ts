@@ -132,6 +132,8 @@ export async function syncScorecardToSupabase(scorecard: DynamicScorecard, targe
     const eventId = 'evt-symposium-2026';
     const regId = `reg-${studentId}`;
 
+    const submittedAt = new Date().toISOString();
+
     // 1. Sync candidate registration record in Supabase
     await supabase.from('registrations').upsert({
       id: regId,
@@ -140,7 +142,9 @@ export async function syncScorecardToSupabase(scorecard: DynamicScorecard, targe
       status: scorecard.totalScore >= 70 ? 'QUALIFIED' : 'SUBMITTED',
       total_score: scorecard.totalScore,
       anti_cheat_flag_count: scorecard.antiCheatFlags,
-      updated_at: new Date().toISOString()
+      submitted_at: submittedAt,
+      completion_time_seconds: scorecard.completionTimeSeconds,
+      updated_at: submittedAt
     });
 
     // 2. Sync candidate leaderboard record in Supabase
