@@ -19,7 +19,7 @@ export default function DebuggingBuilderPage() {
     const autoTitle = title.trim() || markdown.split('\n')[0].replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 45) || 'Debugging Question';
 
     setIsSaving(true);
-    const qRecord = {
+    const qRecord: Record<string, any> = {
       id: `q-${Date.now()}`,
       title: autoTitle,
       description: markdown,
@@ -30,16 +30,26 @@ export default function DebuggingBuilderPage() {
       round: 'Round 2: Algorithmic Debugging',
       round_id: 'round-2',
       points: 40,
-      marks: 40,
       buggy_code: buggyCode,
-      buggyCode: buggyCode,
       reference_solution: buggyCode,
-      referenceSolution: buggyCode,
       status: 'PUBLISHED',
       updated_at: new Date().toISOString()
     };
 
-    const { error } = await supabase.from('questions').upsert(qRecord).select();
+    let activePayload = { ...qRecord };
+    let { error } = await supabase.from('questions').upsert(activePayload).select();
+
+    while (error && error.message && error.message.includes("schema cache")) {
+      const match = error.message.match(/Could not find the '([^']+)' column/);
+      if (match && match[1] && activePayload[match[1]] !== undefined) {
+        delete activePayload[match[1]];
+        const retryRes = await supabase.from('questions').upsert(activePayload).select();
+        error = retryRes.error;
+      } else {
+        break;
+      }
+    }
+
     if (error) {
       alert(`Database Error: ${error.message}`);
       setIsSaving(false);

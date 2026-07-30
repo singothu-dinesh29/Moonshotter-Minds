@@ -529,8 +529,8 @@ export default function QuestionBuilderHub() {
       createdAt: editingQuestion ? editingQuestion.createdAt : new Date().toISOString()
     } as QuestionRecord;
 
-    // Persist strictly to Supabase database & check response
-    const payload = {
+    // Persist strictly to Supabase database with snake_case column names
+    const payload: Record<string, any> = {
       id: newRecord.id,
       title: newRecord.title,
       content_markdown: newRecord.description || '',
@@ -541,36 +541,44 @@ export default function QuestionBuilderHub() {
       round: newRecord.round || 'Round 1: Speed MCQ',
       round_id: newRecord.type === 'MCQ' ? 'round-1' : newRecord.type === 'Debugging' ? 'round-2' : 'round-3',
       points: newRecord.marks || 10,
-      marks: newRecord.marks || 10,
       negative_points: newRecord.negativeMarks || 0,
-      negativeMarks: newRecord.negativeMarks || 0,
       time_limit_sec: newRecord.timeLimitSec || 60,
-      timeLimitSec: newRecord.timeLimitSec || 60,
       memory_limit_mb: newRecord.memoryLimitMb || 256,
-      memoryLimitMb: newRecord.memoryLimitMb || 256,
       expected_output: newRecord.expectedOutput || '',
-      expectedOutput: newRecord.expectedOutput || '',
       reference_solution: newRecord.referenceSolution || '',
-      referenceSolution: newRecord.referenceSolution || '',
       buggy_code: newRecord.buggyCode || newRecord.referenceSolution || '',
-      buggyCode: newRecord.buggyCode || newRecord.referenceSolution || '',
       test_cases: newRecord.testCases || [],
-      testCases: newRecord.testCases || [],
       status: newRecord.status === 'Published' ? 'PUBLISHED' : newRecord.status === 'Archived' ? 'ARCHIVED' : 'DRAFT',
       mcq_options: newRecord.mcqOptions || [],
-      mcqOptions: newRecord.mcqOptions || [],
       category: newRecord.category || 'General',
       version_history: newRecord.versionHistory || [],
-      versionHistory: newRecord.versionHistory || [],
       updated_at: new Date().toISOString()
     };
 
     setIsSaving(true);
     try {
-      const { data, error } = await supabase
+      let activePayload = { ...payload };
+      let { data, error } = await supabase
         .from('questions')
-        .upsert(payload)
+        .upsert(activePayload)
         .select();
+
+      // Resilient schema cache fallback: automatically strip any column not defined in DB schema
+      while (error && error.message && error.message.includes("schema cache")) {
+        const match = error.message.match(/Could not find the '([^']+)' column/);
+        if (match && match[1] && activePayload[match[1]] !== undefined) {
+          console.warn(`Stripping unmapped column '${match[1]}' from upsert payload and retrying...`);
+          delete activePayload[match[1]];
+          const retryResult = await supabase
+            .from('questions')
+            .upsert(activePayload)
+            .select();
+          data = retryResult.data;
+          error = retryResult.error;
+        } else {
+          break;
+        }
+      }
 
       if (error) {
         console.error('Database Error saving question to Supabase:', error);

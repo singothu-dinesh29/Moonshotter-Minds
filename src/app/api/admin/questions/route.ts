@@ -39,13 +39,27 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Perform database INSERT / UPSERT operation
-    const { data, error } = await supabase
+    let activePayload = {
+      ...body,
+      updated_at: new Date().toISOString()
+    };
+
+    let { data, error } = await supabase
       .from('questions')
-      .upsert({
-        ...body,
-        updated_at: new Date().toISOString()
-      })
+      .upsert(activePayload)
       .select();
+
+    while (error && error.message && error.message.includes("schema cache")) {
+      const match = error.message.match(/Could not find the '([^']+)' column/);
+      if (match && match[1] && activePayload[match[1]] !== undefined) {
+        delete activePayload[match[1]];
+        const retryRes = await supabase.from('questions').upsert(activePayload).select();
+        data = retryRes.data;
+        error = retryRes.error;
+      } else {
+        break;
+      }
+    }
 
     if (error) {
       console.error('Supabase Question POST Error:', error);
