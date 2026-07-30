@@ -175,6 +175,7 @@ const INITIAL_QUESTIONS: QuestionRecord[] = [
 export default function QuestionBuilderHub() {
   const [questions, setQuestions] = useState<QuestionRecord[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
@@ -226,12 +227,20 @@ export default function QuestionBuilderHub() {
   const fetchQuestionsFromSupabase = async () => {
     try {
       setIsLoading(true);
+      setFetchError(null);
       const { data: dbQuestions, error } = await supabase
         .from('questions')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && dbQuestions && dbQuestions.length > 0) {
+      if (error) {
+        console.error('Supabase Questions fetch error:', error);
+        setFetchError(error.message || 'Failed to fetch questions from database.');
+        setQuestions([]);
+        return;
+      }
+
+      if (dbQuestions) {
         const mapped: QuestionRecord[] = dbQuestions.map((q: any) => ({
           id: q.id,
           title: q.title || 'Untitled Question',
@@ -256,10 +265,12 @@ export default function QuestionBuilderHub() {
         }));
         setQuestions(mapped);
       } else {
-        setQuestions(INITIAL_QUESTIONS);
+        setQuestions([]);
       }
-    } catch (err) {
-      console.error('Error fetching questions:', err);
+    } catch (err: any) {
+      console.error('Unexpected error fetching questions:', err);
+      setFetchError(err?.message || 'Database connection error.');
+      setQuestions([]);
     } finally {
       setIsLoading(false);
     }
@@ -725,14 +736,26 @@ export default function QuestionBuilderHub() {
 
       {/* 3. QUESTION CARDS LISTING */}
       <div className="space-y-4">
-        {isLoading ? (
+        {fetchError ? (
+          <div className="bg-rose-500/10 border border-rose-500/30 p-8 rounded-3xl text-center text-rose-300 font-mono text-xs space-y-3">
+            <AlertCircle className="h-8 w-8 text-rose-400 mx-auto" />
+            <span className="font-bold block">Failed to load questions from database: {fetchError}</span>
+            <button
+              onClick={() => fetchQuestionsFromSupabase()}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition-all"
+            >
+              Retry Fetching from Supabase
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="bg-slate-900/90 border border-slate-800 p-12 rounded-3xl text-center text-slate-400 font-mono text-xs flex items-center justify-center gap-2">
             <Loader2 className="h-5 w-5 animate-spin text-amber-400" />
-            <span>Fetching question bank from Supabase database...</span>
+            <span>Fetching live question bank directly from Supabase PostgreSQL database...</span>
           </div>
         ) : paginatedQuestions.length === 0 ? (
-          <div className="bg-slate-900/90 border border-dashed border-slate-800 p-12 rounded-3xl text-center text-slate-500 font-sans text-xs">
-            No questions published yet in database. Create your first question using the buttons above.
+          <div className="bg-slate-900/90 border border-dashed border-slate-800 p-12 rounded-3xl text-center text-slate-400 font-sans text-xs space-y-2">
+            <p className="font-bold text-slate-300">No questions found in Supabase database.</p>
+            <p className="text-slate-500">Author your first question using the "Author New Question" button above.</p>
           </div>
         ) : (
           paginatedQuestions.map((q) => (
