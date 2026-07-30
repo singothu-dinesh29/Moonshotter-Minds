@@ -245,7 +245,7 @@ export default function CertificatePipelineHub() {
               <div className="text-center space-y-1">
                 <span className="text-[10px] text-slate-500 uppercase block">FINAL COMPETITION RANK</span>
                 <div className="text-xl font-black text-amber-400 flex items-center justify-center gap-1">
-                  <Trophy className="h-5 w-5" /> Rank #{selectedCandidate.rank}
+                  <Trophy className="h-5 w-5" /> Rank #{currentCandidate.rank}
                 </div>
               </div>
 
@@ -253,7 +253,7 @@ export default function CertificatePipelineHub() {
               <div className="text-center space-y-1 border-y md:border-y-0 md:border-x border-slate-800 py-3 md:py-0">
                 <span className="text-[10px] text-slate-500 uppercase block">TOTAL SCORE ACHIEVED</span>
                 <div className="text-xl font-black text-indigo-400">
-                  {selectedCandidate.total_score} / 120 PTS
+                  {currentCandidate.total_score} / 120 PTS
                 </div>
               </div>
 
