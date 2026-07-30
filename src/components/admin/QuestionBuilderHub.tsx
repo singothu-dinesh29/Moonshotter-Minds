@@ -505,8 +505,13 @@ export default function QuestionBuilderHub() {
       updatedHistory.unshift(newVersionEntry);
     }
 
+    const autoDerivedTitle = formData.title?.trim() 
+      || (formData.description ? formData.description.split('\n')[0].replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 45) : '')
+      || `${formData.type || 'MCQ'} Question`;
+
     const newRecord: QuestionRecord = {
       ...formData,
+      title: autoDerivedTitle,
       id: editingQuestion ? editingQuestion.id : `q-${Date.now()}`,
       versionHistory: updatedHistory,
       createdAt: editingQuestion ? editingQuestion.createdAt : new Date().toISOString()
@@ -993,13 +998,15 @@ export default function QuestionBuilderHub() {
                   </select>
                 </div>
 
-                {/* 2. Question Title */}
+                {/* 2. Question Title (Optional - Auto-filled if empty) */}
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-bold">Question Title</label>
+                  <label className="text-slate-300 font-bold flex items-center justify-between">
+                    <span>Question Title</span>
+                    <span className="text-[10px] text-slate-400 font-mono font-normal">(Optional - auto-generated if left blank)</span>
+                  </label>
                   <input
                     type="text"
-                    required
-                    placeholder="Enter descriptive question title..."
+                    placeholder="Enter title or leave blank to auto-generate..."
                     value={formData.title || ''}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 focus:outline-none"
