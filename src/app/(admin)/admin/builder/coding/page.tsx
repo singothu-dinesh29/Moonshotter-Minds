@@ -46,6 +46,12 @@ export default function CodingBuilderPage() {
     let activePayload = { ...qRecord };
     let { error } = await supabase.from('questions').upsert(activePayload).select();
 
+    if (error && error.message && error.message.includes("invalid input syntax for type uuid")) {
+      activePayload.id = crypto.randomUUID();
+      const retryRes = await supabase.from('questions').upsert(activePayload).select();
+      error = retryRes.error;
+    }
+
     while (error && error.message && error.message.includes("schema cache")) {
       const match = error.message.match(/Could not find the '([^']+)' column/);
       if (match && match[1] && activePayload[match[1]] !== undefined) {

@@ -565,6 +565,18 @@ export default function QuestionBuilderHub() {
         .upsert(activePayload)
         .select();
 
+      // Resilient UUID error fallback: automatically replace non-UUID string IDs with valid v4 UUID
+      if (error && error.message && error.message.includes("invalid input syntax for type uuid")) {
+        console.warn("Invalid UUID format detected in payload, regenerating fresh v4 UUID and retrying...");
+        activePayload.id = crypto.randomUUID();
+        const retryResult = await supabase
+          .from('questions')
+          .upsert(activePayload)
+          .select();
+        data = retryResult.data;
+        error = retryResult.error;
+      }
+
       // Resilient schema cache fallback: automatically strip any column not defined in DB schema
       while (error && error.message && error.message.includes("schema cache")) {
         const match = error.message.match(/Could not find the '([^']+)' column/);
