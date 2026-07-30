@@ -71,6 +71,8 @@ export interface QuestionRecord {
   timeLimitSec: number;
   expectedOutput: string;
   referenceSolution: string;
+  buggyCode?: string;
+  testCases?: { id: string; input: string; expectedOutput: string; isHidden: boolean }[];
   status: QuestionStatus;
   imageUrl?: string;
   mcqOptions?: { id: string; text: string; isCorrect: boolean; imageUrl?: string }[];
@@ -241,6 +243,8 @@ export default function QuestionBuilderHub() {
           timeLimitSec: q.time_limit_sec || q.timeLimitSec || 60,
           expectedOutput: q.expected_output || q.expectedOutput || '',
           referenceSolution: q.reference_solution || q.referenceSolution || '',
+          buggyCode: q.buggy_code || q.buggyCode || '',
+          testCases: q.test_cases || q.testCases || [],
           status: (q.status === 'PUBLISHED' || q.status === 'Published' ? 'Published' : q.status === 'ARCHIVED' || q.status === 'Archived' ? 'Archived' : 'Draft') as QuestionStatus,
           mcqOptions: q.mcq_options || q.mcqOptions || [],
           category: q.category || 'General Programming',
@@ -424,6 +428,36 @@ export default function QuestionBuilderHub() {
     setFormValidationError(null);
   };
 
+  // Debugging Test Cases Management Handlers
+  const getTestCases = () => {
+    if (formData.testCases && formData.testCases.length > 0) {
+      return formData.testCases;
+    }
+    return [
+      { id: 'tc-1', input: 'arr = [2, 7, 11, 15], target = 9', expectedOutput: '[0, 1]', isHidden: false },
+      { id: 'tc-2', input: 'arr = [3, 2, 4], target = 6', expectedOutput: '[1, 2]', isHidden: true }
+    ];
+  };
+
+  const handleAddTestCase = () => {
+    const cases = getTestCases();
+    const newTc = { id: `tc-${Date.now()}`, input: '', expectedOutput: '', isHidden: false };
+    setFormData({ ...formData, testCases: [...cases, newTc] });
+  };
+
+  const handleDeleteTestCase = (idx: number) => {
+    const cases = getTestCases();
+    if (cases.length <= 1) return;
+    const nextCases = cases.filter((_, i) => i !== idx);
+    setFormData({ ...formData, testCases: nextCases });
+  };
+
+  const handleTestCaseChange = (idx: number, field: 'input' | 'expectedOutput' | 'isHidden', value: any) => {
+    const cases = [...getTestCases()];
+    cases[idx] = { ...cases[idx], [field]: value };
+    setFormData({ ...formData, testCases: cases });
+  };
+
   // Save Question & Store Version History
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -498,6 +532,10 @@ export default function QuestionBuilderHub() {
         expectedOutput: newRecord.expectedOutput,
         reference_solution: newRecord.referenceSolution,
         referenceSolution: newRecord.referenceSolution,
+        buggy_code: newRecord.buggyCode || newRecord.referenceSolution,
+        buggyCode: newRecord.buggyCode || newRecord.referenceSolution,
+        test_cases: newRecord.testCases,
+        testCases: newRecord.testCases,
         status: newRecord.status === 'Published' ? 'PUBLISHED' : newRecord.status === 'Archived' ? 'ARCHIVED' : 'DRAFT',
         mcq_options: newRecord.mcqOptions,
         mcqOptions: newRecord.mcqOptions,
@@ -988,10 +1026,11 @@ export default function QuestionBuilderHub() {
                     onChange={(e) => setFormData({ ...formData, language: e.target.value as any })}
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
                   >
-                    <option value="JavaScript">JavaScript</option>
-                    <option value="Python">Python</option>
+                    <option value="C">C</option>
                     <option value="C++">C++</option>
                     <option value="Java">Java</option>
+                    <option value="Python">Python</option>
+                    <option value="JavaScript">JavaScript</option>
                     <option value="SQL">SQL</option>
                     <option value="TypeScript">TypeScript</option>
                   </select>
@@ -1220,38 +1259,69 @@ export default function QuestionBuilderHub() {
                 </div>
               )}
 
-              {/* 2. DEBUGGING SPECIFIC FIELDS */}
+              {/* 2. ENHANCED DEBUGGING AUTHORING FIELDS */}
               {formData.type === 'Debugging' && (
                 <div className="space-y-4 pt-1">
+                  
+                  {/* PROBLEM STATEMENT */}
                   <div className="space-y-1">
-                    <label className="text-slate-300 font-bold">Bug Scenario & Problem Description</label>
+                    <label className="text-slate-300 font-bold flex items-center justify-between">
+                      <span>Problem Statement & Bug Scenario</span>
+                      <span className="text-[10px] text-slate-500 font-mono">* Required</span>
+                    </label>
                     <textarea
                       rows={3}
                       required
-                      placeholder="Describe the logic flaw, off-by-one bug, or memory leak..."
+                      placeholder="Describe the logic flaw, off-by-one loop bug, wrong operator, missing semicolon, or incorrect condition..."
                       value={formData.description || ''}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono focus:border-cyan-500 focus:outline-none"
                     />
                   </div>
 
+                  {/* BUGGY CODE SECTION WITH MONACO PLAYGROUND / EDITOR */}
+                  <div className="space-y-2 bg-slate-950/70 p-4 rounded-2xl border border-cyan-500/30">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-cyan-400 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Code2 className="h-4 w-4" /> Buggy Code (Monaco Editor for 1-2 Intentional Bugs)
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">Monaco Code Editor Active</span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Paste code containing minor intentional bugs (e.g. wrong operator, missing semicolon, off-by-one condition, wrong variable). Students will edit this code in Monaco Editor during the exam.
+                    </p>
+
+                    <div className="rounded-xl overflow-hidden border border-slate-800">
+                      <MonacoPlayground
+                        language={(formData.language || 'javascript').toLowerCase() === 'c++' ? 'cpp' : (formData.language || 'javascript').toLowerCase()}
+                        initialCode={formData.buggyCode || formData.referenceSolution || '// Write or paste buggy code starter here...\nfunction twoSum(nums, target) {\n  const map = new Map();\n  for(let i=0; i<=nums.length; i++) { // Off-by-one bug!\n    const diff = target + nums[i]; // Wrong operator bug!\n    if(map.has(diff)) return [map.get(diff), i];\n    map.set(nums[i], i);\n  }\n}'}
+                        onChange={(val) => setFormData({ ...formData, buggyCode: val })}
+                        timeLimitSec={formData.timeLimitSec || 120}
+                        onRunComplete={(result) => console.log('Admin Debug Test:', result)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* REFERENCE SOLUTION (CORRECT FIXED CODE) */}
                   <div className="space-y-1">
-                    <label className="text-slate-300 font-bold text-cyan-400 flex items-center justify-between">
-                      <span>Buggy Starter Code (Code Provided to Student)</span>
-                      <span className="text-[10px] text-slate-500 font-mono">Monospace Code Editor</span>
+                    <label className="text-slate-300 font-bold text-emerald-400 flex items-center justify-between">
+                      <span>Reference Solution (Correct Fixed Code Model)</span>
+                      <span className="text-[10px] text-slate-500 font-mono">Expected Fix Model</span>
                     </label>
                     <textarea
                       rows={5}
                       required
-                      placeholder="function buggyFunction(arr) { ... }"
+                      placeholder="Paste correct reference code solution here..."
                       value={formData.referenceSolution || ''}
                       onChange={(e) => setFormData({ ...formData, referenceSolution: e.target.value })}
-                      className="w-full bg-slate-950 border border-cyan-500/30 rounded-xl p-3 text-cyan-300 font-mono focus:border-cyan-400 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-300 font-mono focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
 
+                  {/* EXPECTED OUTPUT */}
                   <div className="space-y-1">
-                    <label className="text-slate-300 font-bold">Expected Output / Target Test Case Result</label>
+                    <label className="text-slate-300 font-bold">Expected Output</label>
                     <input
                       type="text"
                       placeholder="e.g. [0, 1] or OK"
@@ -1260,6 +1330,94 @@ export default function QuestionBuilderHub() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-400 font-mono focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
+
+                  {/* MULTIPLE TEST CASES SECTION */}
+                  <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-amber-400 text-xs uppercase tracking-wider block">Test Cases (Public & Hidden)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Define test input parameters and expected output</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddTestCase}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs rounded-xl flex items-center gap-1 transition-all shadow"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add Test Case
+                      </button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {getTestCases().map((tc, idx) => {
+                        const tcList = getTestCases();
+                        return (
+                          <div key={tc.id || idx} className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                              <span className="font-mono text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                Test Case #{idx + 1}
+                                {tc.isHidden ? (
+                                  <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px]">
+                                    Hidden Test Case
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px]">
+                                    Public Test Case
+                                  </span>
+                                )}
+                              </span>
+
+                              <div className="flex items-center gap-3">
+                                <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer font-mono">
+                                  <input
+                                    type="checkbox"
+                                    checked={tc.isHidden}
+                                    onChange={(e) => handleTestCaseChange(idx, 'isHidden', e.target.checked)}
+                                    className="accent-purple-500 h-3.5 w-3.5 cursor-pointer rounded"
+                                  />
+                                  <span className="text-[11px]">Hidden Test Case</span>
+                                </label>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTestCase(idx)}
+                                  disabled={tcList.length <= 1}
+                                  title="Delete Test Case"
+                                  className="p-1 text-slate-500 hover:text-rose-400 disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-rose-500/10 transition-all"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-xs">
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Input / STDIN</label>
+                                <textarea
+                                  rows={2}
+                                  placeholder="e.g. arr = [2, 7, 11, 15], target = 9"
+                                  value={tc.input}
+                                  onChange={(e) => handleTestCaseChange(idx, 'input', e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs focus:border-cyan-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Expected Output / STDOUT</label>
+                                <textarea
+                                  rows={2}
+                                  placeholder="e.g. [0, 1]"
+                                  value={tc.expectedOutput}
+                                  onChange={(e) => handleTestCaseChange(idx, 'expectedOutput', e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-emerald-400 text-xs focus:border-emerald-500 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                 </div>
               )}
 
