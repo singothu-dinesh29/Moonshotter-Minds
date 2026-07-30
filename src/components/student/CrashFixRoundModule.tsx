@@ -12,7 +12,7 @@ import {
   getLanguageFileName 
 } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
-import { saveDynamicScorecard, isQuestionPublishedForRound } from '@/lib/scoringEngine';
+import { saveDynamicScorecard, isQuestionPublishedForRound, fetchPublishedQuestionsForRound } from '@/lib/scoringEngine';
 import { formatSeconds } from '@/lib/utils';
 import { 
   Play, 
@@ -43,49 +43,40 @@ export default function CrashFixRoundModule() {
 
   const fetchPublishedCrashQuestions = async () => {
     try {
-      const { data, error } = await supabase
-        .from('questions')
-        .select('*');
+      const published = await fetchPublishedQuestionsForRound('CRASH_FIX');
 
-      if (!error && data) {
-        // Strict Visibility Policy: Only Published Crash & Fix questions are visible to students
-        const published = data.filter((q: any) => isQuestionPublishedForRound(q, 'CRASH_FIX'));
+      if (published.length > 0) {
+        const mapped: CrashQuestionItem[] = published.map((q: any) => ({
+          id: q.id,
+          title: q.title,
+          difficulty: (q.difficulty || 'MEDIUM').toUpperCase() as any,
+          description: q.content_markdown || q.content || q.description || '',
+          crashErrorType: 'Runtime Exception / Recursion Error',
+          initialCode: q.coding ? q.coding.initial_code : (q.reference_solution || q.referenceSolution || ''),
+          solutionCode: q.coding ? q.coding.initial_code : (q.reference_solution || q.referenceSolution || ''),
+          expectedPatch: '+ fix edge cases',
+          points: q.points || q.marks || 50,
+          language: q.coding ? q.coding.language : (q.language || 'python'),
+          testCases: q.coding ? q.coding.test_cases : (q.testCases || [{ input: 'maxDepth(node)', expected_output: '0' }])
+        }));
 
-        if (published.length > 0) {
-          const mapped: CrashQuestionItem[] = published.map((q: any) => ({
-            id: q.id,
-            title: q.title,
-            difficulty: 'MEDIUM',
-            description: q.content_markdown || q.description || '',
-            crashErrorType: 'Runtime Exception / Recursion Error',
-            initialCode: q.reference_solution || q.referenceSolution || '',
-            solutionCode: q.reference_solution || q.referenceSolution || '',
-            expectedPatch: '+ if (!node) return 0;',
-            points: q.points || q.marks || 50,
-            language: q.language || 'python',
-            testCases: [
-              { input: 'maxDepth(node)', expected_output: '0' }
-            ]
-          }));
-
-          if (!isExamActiveRef.current) {
-            setCrashQuestions(mapped);
-            const newCodeMap: Record<string, string> = {};
-            mapped.forEach((q) => {
-              newCodeMap[q.id] = q.initialCode;
-            });
-            setCodeMap(newCodeMap);
-            createExamSnapshot({
-              studentId: 'candidate-2026-cs-942',
-              round: 'ROUND_03_CRASH_FIX',
-              questions: mapped,
-              timer: 15 * 60,
-              marks: mapped.reduce((sum, q) => sum + q.points, 0),
-              negativeMarks: 0
-            });
-          }
-          return;
+        if (!isExamActiveRef.current) {
+          setCrashQuestions(mapped);
+          const newCodeMap: Record<string, string> = {};
+          mapped.forEach((q) => {
+            newCodeMap[q.id] = q.initialCode;
+          });
+          setCodeMap(newCodeMap);
+          createExamSnapshot({
+            studentId: 'candidate-2026-cs-942',
+            round: 'ROUND_03_CRASH_FIX',
+            questions: mapped,
+            timer: 15 * 60,
+            marks: mapped.reduce((sum, q) => sum + q.points, 0),
+            negativeMarks: 0
+          });
         }
+        return;
       }
       if (!isExamActiveRef.current) {
         setCrashQuestions([]);
@@ -140,6 +131,9 @@ export default function CrashFixRoundModule() {
 
   // Auto Save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<string>('Saved');
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(15 * 60);
+  const [isExamActive, setIsExamActive] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   if (crashQuestions.length === 0 || !currentQ) {
     return (
@@ -150,11 +144,6 @@ export default function CrashFixRoundModule() {
       </div>
     );
   }
-
-  // Timer State (15 Mins = 900 seconds)
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(15 * 60);
-  const [isExamActive, setIsExamActive] = useState<boolean>(true);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Auto Save Effect (Saves drafts to localStorage every 3s)
   useEffect(() => {

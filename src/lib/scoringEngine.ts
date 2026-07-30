@@ -233,3 +233,69 @@ export function isQuestionPublishedForRound(q: any, targetRound: 'MCQ' | 'DEBUGG
 
   return false;
 }
+
+/**
+ * SINGLE SOURCE OF TRUTH FOR PUBLISHED QUESTIONS FROM SUPABASE.
+ * Both Student Dashboard and Exam Arena read using this exact function.
+ */
+export async function fetchPublishedQuestionsForRound(roundType: 'MCQ' | 'DEBUGGING' | 'CRASH_FIX'): Promise<any[]> {
+  try {
+    const { data: dbOptions } = await supabase.from('mcq_options').select('*');
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error || !data) return [];
+
+    const filtered = data.filter((q: any) => isQuestionPublishedForRound(q, roundType));
+
+    return filtered.map((q: any, idx: number) => {
+      let rawOpts = (q.mcq_options || q.mcqOptions || []);
+      if ((!rawOpts || rawOpts.length === 0) && dbOptions && dbOptions.length > 0) {
+        const matched = dbOptions
+          .filter((opt: any) => opt.question_id === q.id)
+          .sort((a: any, b: any) => (a.option_order || 0) - (b.option_order || 0));
+        if (matched.length > 0) {
+          rawOpts = matched;
+        }
+      }
+
+      const points = typeof q.points === 'number' ? q.points : (typeof q.marks === 'number' ? q.marks : 10);
+      const negPoints = typeof q.negative_points === 'number' ? q.negative_points : (typeof q.negativeMarks === 'number' ? q.negativeMarks : 0);
+
+      return {
+        id: q.id,
+        questionNumber: idx + 1,
+        title: q.title || `Question ${idx + 1}`,
+        description: q.content_markdown || q.description || '',
+        content: q.content_markdown || q.description || '',
+        content_markdown: q.content_markdown || q.description || '',
+        points,
+        marks: points,
+        negativePoints: negPoints,
+        negative_points: negPoints,
+        difficulty: q.difficulty || 'Medium',
+        options: rawOpts.map((opt: any) => ({
+          id: opt.id || `opt-${opt.text || opt.option_text}`,
+          text: opt.text || opt.option_text || '',
+          option_text: opt.text || opt.option_text || '',
+          isCorrect: !!opt.is_correct || !!opt.isCorrect
+        })),
+        coding: {
+          id: `code-${q.id}`,
+          question_id: q.id,
+          language: (q.language || 'javascript').toLowerCase(),
+          initial_code: q.reference_solution || q.referenceSolution || q.buggy_code || q.buggyCode || '',
+          test_cases: q.test_cases || q.testCases || [
+            { input: 'twoSum([2, 7, 11, 15], 9)', expected_output: '[0,1]' },
+            { input: 'twoSum([3, 2, 4], 6)', expected_output: '[1,2]' }
+          ]
+        }
+      };
+    });
+  } catch (err) {
+    console.error(`Error fetching published questions for ${roundType}:`, err);
+    return [];
+  }
+}

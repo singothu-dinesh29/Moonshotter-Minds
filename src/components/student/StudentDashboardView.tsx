@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { MOCK_EVENT, MOCK_ROUNDS, supabase } from '@/lib/supabase';
 import { formatSeconds, formatHHMMSS } from '@/lib/utils';
-import { getDynamicScorecard, calculatePublishedQuestionsMaxScore, DynamicScorecard } from '@/lib/scoringEngine';
+import { getDynamicScorecard, calculatePublishedQuestionsMaxScore, fetchPublishedQuestionsForRound, DynamicScorecard } from '@/lib/scoringEngine';
 import { getActiveExamSession, getRemainingExamSeconds, startExamSession, getConfiguredExamDurationSeconds } from '@/lib/examSession';
 import { 
   User, 
@@ -113,34 +113,31 @@ export default function StudentDashboardView() {
 
   const fetchLiveRoundsFromSupabase = async () => {
     try {
-      const { data: dbQuestions } = await supabase.from('questions').select('*');
       const { data: dbRounds } = await supabase.from('rounds').select('*');
 
-      const allQuestions = dbQuestions || [];
-      const publishedQs = allQuestions.filter((q: any) => q.status === 'PUBLISHED' || q.status === 'Published');
+      const r1Questions = await fetchPublishedQuestionsForRound('MCQ');
+      const r2Questions = await fetchPublishedQuestionsForRound('DEBUGGING');
+      const r3Questions = await fetchPublishedQuestionsForRound('CRASH_FIX');
 
       // Round 01: MCQ
-      const r1Questions = publishedQs.filter((q: any) => q.type === 'MCQ' || q.round_id === 'round-1' || !q.type);
       const r1TotalMarks = r1Questions.reduce((sum: number, q: any) => sum + (q.points || q.marks || 10), 0) || 30;
-      const r1Neg = r1Questions[0]?.negative_points ?? r1Questions[0]?.negativeMarks ?? 2;
+      const r1Neg = r1Questions[0]?.negative_points ?? r1Questions[0]?.negativePoints ?? 2;
       const r1RoundDb = dbRounds?.find((r: any) => r.round_type === 'MCQ' || r.sequence_order === 1);
       const r1Duration = r1RoundDb?.duration_minutes || 15;
       const r1Status = r1RoundDb?.status || 'Available';
       const r1Diff = r1Questions[0]?.difficulty || 'Easy';
 
       // Round 02: Debugging
-      const r2Questions = publishedQs.filter((q: any) => q.type === 'Debugging' || q.round_id === 'round-2');
       const r2TotalMarks = r2Questions.reduce((sum: number, q: any) => sum + (q.points || q.marks || 40), 0) || 40;
-      const r2Neg = r2Questions[0]?.negative_points ?? r2Questions[0]?.negativeMarks ?? 0;
+      const r2Neg = r2Questions[0]?.negative_points ?? r2Questions[0]?.negativePoints ?? 0;
       const r2RoundDb = dbRounds?.find((r: any) => r.round_type === 'DEBUGGING' || r.sequence_order === 2);
       const r2Duration = r2RoundDb?.duration_minutes || 15;
       const r2Status = r2RoundDb?.status || 'Available';
       const r2Diff = r2Questions[0]?.difficulty || 'Medium';
 
       // Round 03: Crash & Fix
-      const r3Questions = publishedQs.filter((q: any) => q.type === 'Crash & Fix' || q.round_id === 'round-3');
       const r3TotalMarks = r3Questions.reduce((sum: number, q: any) => sum + (q.points || q.marks || 50), 0) || 50;
-      const r3Neg = r3Questions[0]?.negative_points ?? r3Questions[0]?.negativeMarks ?? 0;
+      const r3Neg = r3Questions[0]?.negative_points ?? r3Questions[0]?.negativePoints ?? 0;
       const r3RoundDb = dbRounds?.find((r: any) => r.round_type === 'CRASH_FIX' || r.sequence_order === 3);
       const r3Duration = r3RoundDb?.duration_minutes || 15;
       const r3Status = r3RoundDb?.status || 'Available';

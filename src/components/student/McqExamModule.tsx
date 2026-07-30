@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-import { saveDynamicScorecard, isQuestionPublishedForRound } from '@/lib/scoringEngine';
+import { saveDynamicScorecard, isQuestionPublishedForRound, fetchPublishedQuestionsForRound } from '@/lib/scoringEngine';
 
 export default function McqExamModule() {
   const router = useRouter();
@@ -41,59 +41,34 @@ export default function McqExamModule() {
   // Fetch Published MCQ Questions from Supabase DB with Realtime Sync
   const fetchPublishedMcqs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('questions')
-        .select('*');
+      const publishedMcqs = await fetchPublishedQuestionsForRound('MCQ');
 
-      const { data: dbOptions } = await supabase
-        .from('mcq_options')
-        .select('*');
-
-      if (!error && data) {
-        // Strict Visibility Policy: Only Published questions are visible to students
-        const publishedMcqs = data.filter((q: any) => isQuestionPublishedForRound(q, 'MCQ'));
-
-        if (publishedMcqs.length > 0) {
-          const mapped: MCQItem[] = publishedMcqs.map((q: any, idx: number) => {
-            let rawOpts = (q.mcq_options || q.mcqOptions || []);
-            if ((!rawOpts || rawOpts.length === 0) && dbOptions && dbOptions.length > 0) {
-              const matched = dbOptions
-                .filter((opt: any) => opt.question_id === q.id)
-                .sort((a: any, b: any) => (a.option_order || 0) - (b.option_order || 0));
-              if (matched.length > 0) {
-                rawOpts = matched;
-              }
-            }
-
-            return {
-              id: q.id,
-              questionNumber: idx + 1,
-              title: q.title,
-              content: q.content_markdown || q.description || '',
-              points: typeof q.points === 'number' ? q.points : (typeof q.marks === 'number' ? q.marks : 10),
-              negativePoints: typeof q.negative_points === 'number' ? q.negative_points : (typeof q.negativeMarks === 'number' ? q.negativeMarks : 0),
-              options: rawOpts.map((opt: any) => ({
-                id: opt.id || `opt-${opt.text}`,
-                text: opt.text || opt.option_text || '',
-                isCorrect: !!opt.is_correct || !!opt.isCorrect
-              }))
-            };
+      if (publishedMcqs.length > 0) {
+        const mapped: MCQItem[] = publishedMcqs.map((q: any, idx: number) => ({
+          id: q.id,
+          questionNumber: idx + 1,
+          title: q.title,
+          content: q.content_markdown || q.content || q.description || '',
+          points: q.points || q.marks || 10,
+          negativePoints: q.negativePoints || q.negative_points || 0,
+          options: q.options.map((opt: any) => ({
+            id: opt.id || `opt-${opt.text}`,
+            text: opt.text || opt.option_text || '',
+            isCorrect: !!opt.isCorrect
+          }))
+        }));
+        if (!isExamActiveRef.current) {
+          setQuestions(mapped);
+          createExamSnapshot({
+            studentId: 'candidate-2026-cs-942',
+            round: 'ROUND_01_MCQ',
+            questions: mapped,
+            timer: 15 * 60,
+            marks: mapped.reduce((sum, q) => sum + q.points, 0),
+            negativeMarks: mapped[0]?.negativePoints || 2
           });
-
-          if (!isExamActiveRef.current) {
-            setQuestions(mapped);
-            // Create Immutable Exam Snapshot in Supabase
-            createExamSnapshot({
-              studentId: 'candidate-2026-cs-942',
-              round: 'ROUND_01_MCQ',
-              questions: mapped,
-              timer: 15 * 60,
-              marks: mapped.reduce((sum, q) => sum + q.points, 0),
-              negativeMarks: mapped[0]?.negativePoints || 2
-            });
-          }
-          return;
         }
+        return;
       }
       if (!isExamActiveRef.current) {
         setQuestions([]);

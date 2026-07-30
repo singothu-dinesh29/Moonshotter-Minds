@@ -11,7 +11,7 @@ import {
   getLanguageFileName 
 } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
-import { saveDynamicScorecard, isQuestionPublishedForRound } from '@/lib/scoringEngine';
+import { saveDynamicScorecard, isQuestionPublishedForRound, fetchPublishedQuestionsForRound } from '@/lib/scoringEngine';
 import { formatSeconds } from '@/lib/utils';
 import { 
   Play, 
@@ -45,56 +45,31 @@ export default function DebuggingRoundModule() {
 
   const fetchPublishedDebugQuestion = async () => {
     try {
-      const { data, error } = await supabase
-        .from('questions')
-        .select('*');
+      const published = await fetchPublishedQuestionsForRound('DEBUGGING');
 
-      if (!error && data) {
-        // Strict Visibility Policy: Only Published Debugging questions are visible
-        const published = data.filter((q: any) => isQuestionPublishedForRound(q, 'DEBUGGING'));
+      if (published.length > 0) {
+        const spec = published[0];
 
-        if (published.length > 0) {
-          const q = published[0];
-          const spec = {
-            id: q.id,
-            title: q.title,
-            content_markdown: q.content_markdown || q.description || '',
-            points: q.points || q.marks || 40,
-            negative_points: q.negative_points || 0,
-            coding: {
-              id: `code-${q.id}`,
-              question_id: q.id,
-              language: (q.language || 'javascript').toLowerCase(),
-              initial_code: q.reference_solution || q.referenceSolution || '',
-              solution_code: q.reference_solution || q.referenceSolution || '',
-              test_cases: [
-                { input: 'twoSum([2, 7, 11, 15], 9)', expected_output: '[0,1]' },
-                { input: 'twoSum([3, 2, 4], 6)', expected_output: '[1,2]' }
-              ]
-            }
-          };
-
-          if (!isExamActiveRef.current) {
-            setQuestionSpec(spec);
-            setCode(spec.coding.initial_code);
-            setLanguage(spec.coding.language);
-            createExamSnapshot({
-              studentId: 'candidate-2026-cs-942',
-              round: 'ROUND_02_DEBUGGING',
-              questions: [spec],
-              timer: 15 * 60,
-              marks: spec.points,
-              negativeMarks: spec.negative_points
-            });
-          }
-          return;
+        if (!isExamActiveRef.current) {
+          setQuestionSpec(spec);
+          setCode(spec.coding ? spec.coding.initial_code : spec.initialCode || '');
+          setLanguage(spec.coding ? spec.coding.language : spec.language || 'javascript');
+          createExamSnapshot({
+            studentId: 'candidate-2026-cs-942',
+            round: 'ROUND_02_DEBUGGING',
+            questions: [spec],
+            timer: 15 * 60,
+            marks: spec.points || spec.marks || 40,
+            negativeMarks: spec.negativePoints || spec.negative_points || 0
+          });
         }
+        return;
       }
       if (!isExamActiveRef.current) {
         setQuestionSpec(null);
       }
     } catch (err) {
-      console.error('Error fetching published debug question from Supabase:', err);
+      console.error('Error fetching published Debugging question from Supabase:', err);
       if (!isExamActiveRef.current) {
         setQuestionSpec(null);
       }
