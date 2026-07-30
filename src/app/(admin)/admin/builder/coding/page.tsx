@@ -27,7 +27,7 @@ export default function CodingBuilderPage() {
 
     setIsSaving(true);
     const qRecord: Record<string, any> = {
-      id: `q-${Date.now()}`,
+      id: crypto.randomUUID(),
       title: autoTitle,
       description: markdown,
       content_markdown: markdown,
@@ -35,7 +35,6 @@ export default function CodingBuilderPage() {
       language: 'JavaScript',
       difficulty: 'Hard',
       round: 'Round 3: Crash & Fix',
-      round_id: 'round-3',
       points: 50,
       buggy_code: initialCode,
       reference_solution: initialCode,

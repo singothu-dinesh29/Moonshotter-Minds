@@ -521,17 +521,20 @@ export default function QuestionBuilderHub() {
       || (formData.description ? formData.description.split('\n')[0].replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 45) : '')
       || `${formData.type || 'MCQ'} Question`;
 
+    const isUuid = (str?: string) => !!str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+    const validId = editingQuestion && isUuid(editingQuestion.id) ? editingQuestion.id : crypto.randomUUID();
+
     const newRecord: QuestionRecord = {
       ...formData,
       title: autoDerivedTitle,
-      id: editingQuestion ? editingQuestion.id : `q-${Date.now()}`,
+      id: validId,
       versionHistory: updatedHistory,
       createdAt: editingQuestion ? editingQuestion.createdAt : new Date().toISOString()
     } as QuestionRecord;
 
-    // Persist strictly to Supabase database with snake_case column names
+    // Persist strictly to Supabase database with snake_case column names and valid UUIDs
     const payload: Record<string, any> = {
-      id: newRecord.id,
+      id: validId,
       title: newRecord.title,
       content_markdown: newRecord.description || '',
       description: newRecord.description || '',
@@ -539,7 +542,6 @@ export default function QuestionBuilderHub() {
       language: newRecord.language || 'JavaScript',
       difficulty: newRecord.difficulty || 'Medium',
       round: newRecord.round || 'Round 1: Speed MCQ',
-      round_id: newRecord.type === 'MCQ' ? 'round-1' : newRecord.type === 'Debugging' ? 'round-2' : 'round-3',
       points: newRecord.marks || 10,
       negative_points: newRecord.negativeMarks || 0,
       time_limit_sec: newRecord.timeLimitSec || 60,
@@ -633,9 +635,10 @@ export default function QuestionBuilderHub() {
   };
 
   const handleDuplicate = async (q: QuestionRecord) => {
+    const duplicatedId = crypto.randomUUID();
     const duplicated: QuestionRecord = {
       ...q,
-      id: `q-${Date.now()}`,
+      id: duplicatedId,
       title: `${q.title} (Copy)`,
       status: 'Draft',
       versionHistory: [],
@@ -652,9 +655,7 @@ export default function QuestionBuilderHub() {
         language: duplicated.language,
         difficulty: duplicated.difficulty,
         round: duplicated.round,
-        round_id: duplicated.type === 'MCQ' ? 'round-1' : duplicated.type === 'Debugging' ? 'round-2' : 'round-3',
         points: duplicated.marks,
-        marks: duplicated.marks,
         negative_points: duplicated.negativeMarks,
         status: 'DRAFT',
         mcq_options: duplicated.mcqOptions,

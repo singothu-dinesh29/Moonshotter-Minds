@@ -55,7 +55,7 @@ export default function McqBuilderPage() {
     }));
 
     const qRecord: Record<string, any> = {
-      id: `q-${Date.now()}`,
+      id: crypto.randomUUID(),
       title: autoTitle,
       description: markdown,
       content_markdown: markdown,
@@ -63,7 +63,6 @@ export default function McqBuilderPage() {
       language: 'JavaScript',
       difficulty: 'Medium',
       round: 'Round 1: Speed MCQ',
-      round_id: 'round-1',
       points,
       negative_points: negativePoints,
       status: 'PUBLISHED',

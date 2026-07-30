@@ -20,7 +20,7 @@ export default function DebuggingBuilderPage() {
 
     setIsSaving(true);
     const qRecord: Record<string, any> = {
-      id: `q-${Date.now()}`,
+      id: crypto.randomUUID(),
       title: autoTitle,
       description: markdown,
       content_markdown: markdown,
@@ -28,7 +28,6 @@ export default function DebuggingBuilderPage() {
       language: 'JavaScript',
       difficulty: 'Medium',
       round: 'Round 2: Algorithmic Debugging',
-      round_id: 'round-2',
       points: 40,
       buggy_code: buggyCode,
       reference_solution: buggyCode,
