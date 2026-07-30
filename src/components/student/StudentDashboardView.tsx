@@ -308,7 +308,7 @@ export default function StudentDashboardView() {
             <p className="text-xs text-slate-400 flex items-center gap-3">
               <span className="flex items-center gap-1"><School className="h-3.5 w-3.5 text-indigo-400" /> {user?.college_name || 'Muthayammal Engineering College'}</span>
               <span>•</span>
-              <span className="font-mono text-slate-300">ID: 2026-CS-942</span>
+              <span className="font-mono text-slate-300">ID: {user?.id ? (user.id.startsWith('u-') ? user.id.replace('u-', '2026-CS-') : user.id.substring(0, 12).toUpperCase()) : '2026-CS-942'}</span>
             </p>
           </div>
         </div>

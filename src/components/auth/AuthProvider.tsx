@@ -21,28 +21,53 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserRecord | null>({
-    id: 'u-demo-1',
-    email: 'alex.chen@mit.edu',
-    full_name: 'Alex Chen',
-    college_name: 'MIT Institute of Technology',
-    role_id: 'r-student',
-    role: 'STUDENT',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+  const [user, setUser] = useState<UserRecord | null>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = sessionStorage.getItem('symphosium_user') || localStorage.getItem('symphosium_user');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.full_name) {
+            return parsed;
+          }
+        } catch (e) {}
+      }
+    }
+    return null;
   });
-  const [role, setRole] = useState<UserRole>('STUDENT');
-  const [session, setSession] = useState<any | null>({ user: { email: 'alex.chen@mit.edu' } });
+
+  const [role, setRole] = useState<UserRole>(() => {
+    if (user?.role) return user.role;
+    if (typeof window !== 'undefined') {
+      const match = document.cookie.match(new RegExp('(^| )symphosium_role=([^;]+)'));
+      if (match) return match[2] as UserRole;
+    }
+    return 'STUDENT';
+  });
+
+  const [session, setSession] = useState<any | null>(user ? { user: { email: user.email } } : null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [hasPlayedIntro, setHasPlayedIntro] = useState<boolean>(false);
   const router = useRouter();
 
-  // Initialize intro state from sessionStorage on client mount
+  // Restore stored user session on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem('symphosium_intro_played');
-      if (stored === 'true') {
+      const storedIntro = sessionStorage.getItem('symphosium_intro_played');
+      if (storedIntro === 'true') {
         setHasPlayedIntro(true);
+      }
+
+      const cachedUser = sessionStorage.getItem('symphosium_user') || localStorage.getItem('symphosium_user');
+      if (cachedUser) {
+        try {
+          const parsed = JSON.parse(cachedUser);
+          if (parsed && parsed.id) {
+            setUser(parsed);
+            if (parsed.role) setRole(parsed.role);
+            setSession({ user: { email: parsed.email } });
+          }
+        } catch (e) {}
       }
     }
   }, []);
@@ -122,14 +147,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(authenticatedUser);
       setSession({ user: { email: data.user.email } });
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('symphosium_user', JSON.stringify(authenticatedUser));
+        localStorage.setItem('symphosium_user', JSON.stringify(authenticatedUser));
+        sessionStorage.removeItem('symphosium_intro_played');
+      }
       
       // Set client role cookie for middleware security
       document.cookie = `symphosium_role=${targetRole}; path=/; max-age=604800`;
-
-      // Reset intro played flag so the new post-login session plays the intro animation ONCE
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('symphosium_intro_played');
-      }
 
       // CASE 1: Admin redirect to /admin/dashboard
       // CASE 2: Student redirect to /student/dashboard
@@ -146,6 +172,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     document.cookie = 'symphosium_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('symphosium_intro_played');
+      sessionStorage.removeItem('symphosium_user');
+      localStorage.removeItem('symphosium_user');
     }
     setUser(null);
     setSession(null);

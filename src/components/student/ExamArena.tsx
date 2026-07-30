@@ -31,9 +31,11 @@ import {
   Loader2
 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function ExamArena() {
   const router = useRouter();
+  const { user } = useAuth();
   const [activeRoundIndex, setActiveRoundIndex] = useState<number>(0);
   
   // Timer State (45 mins countdown)
@@ -384,7 +386,7 @@ export default function ExamArena() {
                 LIVE ARENA
               </span>
             </h1>
-            <p className="text-xs text-slate-400">Candidate: Alex Chen (MIT-2026-942)</p>
+            <p className="text-xs text-slate-400">Candidate: {user?.full_name || 'Registered Candidate'} ({user?.email || 'Candidate'})</p>
           </div>
         </div>
 

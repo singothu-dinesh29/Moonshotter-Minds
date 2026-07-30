@@ -9,8 +9,12 @@ import {
   Menu, 
   X, 
   UserPlus, 
-  LogIn 
+  LogIn,
+  User,
+  LogOut,
+  LayoutDashboard
 } from 'lucide-react';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface NavLinkItem {
   name: string;
@@ -30,6 +34,7 @@ const NAV_LINKS: NavLinkItem[] = [
 ];
 
 export default function Navbar() {
+  const { user, role, signOut } = useAuth();
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeLink, setActiveLink] = useState('Home');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -119,24 +124,55 @@ export default function Navbar() {
           })}
         </nav>
 
-        {/* RIGHT ACTIONS: LOGIN & REGISTER CTAS */}
+        {/* RIGHT ACTIONS: LOGGED-IN ACCOUNT DISPLAY OR LOGIN & REGISTER CTAS */}
         <div className="hidden md:flex items-center gap-3">
+          {user ? (
+            <div className="flex items-center gap-3">
+              <Link
+                href={role === 'ADMIN' ? '/admin/dashboard' : '/student/dashboard'}
+                className="flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-slate-900/90 border border-[#D4AF37]/40 hover:border-[#D4AF37]/80 text-white transition-all shadow-md group"
+              >
+                <div className="h-6 w-6 rounded-full bg-gradient-to-tr from-[#B8860B] to-emerald-600 flex items-center justify-center text-[11px] font-bold font-mono text-white">
+                  {user.full_name?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div className="flex flex-col text-left">
+                  <span className="text-xs font-bold font-sans text-amber-300 group-hover:text-amber-200 transition-colors">
+                    {user.full_name || user.email}
+                  </span>
+                  <span className="text-[9px] font-mono text-slate-400 uppercase tracking-wider">
+                    {role === 'ADMIN' ? 'Administrator' : 'Candidate Account'}
+                  </span>
+                </div>
+              </Link>
 
-          <Link
-            href="/login"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0F192C] hover:bg-[#182640] text-slate-200 text-xs font-medium border border-[#D4AF37]/30 transition-all hover:border-[#D4AF37]/60"
-          >
-            <LogIn className="h-3.5 w-3.5 text-amber-400" />
-            <span>Login</span>
-          </Link>
+              <button
+                onClick={signOut}
+                className="px-3 py-1.5 rounded-full bg-slate-950 hover:bg-red-500/20 text-slate-400 hover:text-red-400 border border-slate-800 hover:border-red-500/30 text-xs font-semibold transition-all flex items-center gap-1"
+                title="Logout Account"
+              >
+                <LogOut className="h-3 w-3" />
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#0F192C] hover:bg-[#182640] text-slate-200 text-xs font-medium border border-[#D4AF37]/30 transition-all hover:border-[#D4AF37]/60"
+              >
+                <LogIn className="h-3.5 w-3.5 text-amber-400" />
+                <span>Login</span>
+              </Link>
 
-          <Link
-            href="/register"
-            className="flex items-center gap-1.5 px-5 py-2 rounded-full bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-xs transition-all shadow-md shadow-emerald-900/30 border border-emerald-500/30 hover:scale-105"
-          >
-            <UserPlus className="h-3.5 w-3.5 text-amber-300" />
-            <span>Register</span>
-          </Link>
+              <Link
+                href="/register"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-full bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-600 hover:to-emerald-700 text-white font-semibold text-xs transition-all shadow-md shadow-emerald-900/30 border border-emerald-500/30 hover:scale-105"
+              >
+                <UserPlus className="h-3.5 w-3.5 text-amber-300" />
+                <span>Register</span>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* MOBILE HAMBURGER BUTTON */}
@@ -174,20 +210,51 @@ export default function Navbar() {
             </nav>
 
             <div className="pt-2 flex flex-col gap-3">
-              <Link
-                href="/login"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="w-full py-2.5 rounded-lg bg-slate-900 text-center text-slate-200 font-semibold text-xs border border-slate-700"
-              >
-                Login
-              </Link>
-              <Link
-                href="/register"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="w-full py-2.5 rounded-lg bg-amber-500 text-center text-slate-950 font-bold text-xs shadow-md"
-              >
-                Register
-              </Link>
+              {user ? (
+                <>
+                  <div className="px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-full bg-amber-500 flex items-center justify-center text-slate-950 font-bold text-xs">
+                        {user.full_name?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                      <div className="text-left">
+                        <div className="text-xs font-bold text-white">{user.full_name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{user.email}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <Link
+                    href={role === 'ADMIN' ? '/admin/dashboard' : '/student/dashboard'}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-center text-white font-bold text-xs"
+                  >
+                    Go to Dashboard
+                  </Link>
+                  <button
+                    onClick={() => { setIsMobileMenuOpen(false); signOut(); }}
+                    className="w-full py-2 rounded-lg bg-red-500/20 text-red-400 text-center font-semibold text-xs border border-red-500/30"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full py-2.5 rounded-lg bg-slate-900 text-center text-slate-200 font-semibold text-xs border border-slate-700"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full py-2.5 rounded-lg bg-amber-500 text-center text-slate-950 font-bold text-xs shadow-md"
+                  >
+                    Register
+                  </Link>
+                </>
+              )}
             </div>
           </motion.div>
         )}
