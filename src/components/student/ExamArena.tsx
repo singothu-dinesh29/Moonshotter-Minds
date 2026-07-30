@@ -365,7 +365,7 @@ export default function ExamArena() {
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex-1 flex flex-col">
                 <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Target Test Matrix</h4>
                 <div className="space-y-2 flex-1">
-                  {MOCK_DEBUG_QUESTION.coding.test_cases.map((tc: any, idx: number) => (
+                  {debugQuestion.coding.test_cases.map((tc: any, idx: number) => (
                     <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono space-y-1">
                       <div className="text-slate-400">Input: <span className="text-slate-200">{tc.input}</span></div>
                       <div className="text-slate-400">Expected: <span className="text-emerald-400">{tc.expected_output}</span></div>
@@ -380,7 +380,7 @@ export default function ExamArena() {
                       <span className={debugResult.status === 'PASSED' ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
                         STATUS: {debugResult.status}
                       </span>
-                      <span className="text-slate-400">Score: {debugResult.score}/{MOCK_DEBUG_QUESTION.points} pts ({debugResult.execution_time_ms}ms)</span>
+                      <span className="text-slate-400">Score: {debugResult.score}/{debugQuestion.points} pts ({debugResult.execution_time_ms}ms)</span>
                     </div>
 
                     <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
@@ -464,7 +464,7 @@ export default function ExamArena() {
                       <span className={crashResult.status === 'PASSED' ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
                         CRASH STATUS: {crashResult.status}
                       </span>
-                      <span className="text-slate-400">Score: {crashResult.score}/{MOCK_CRASH_QUESTION.points} pts</span>
+                      <span className="text-slate-400">Score: {crashResult.score}/{crashQuestion.points} pts</span>
                     </div>
 
                     <div className="space-y-1">
