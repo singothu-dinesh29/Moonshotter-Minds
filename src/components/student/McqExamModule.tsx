@@ -74,8 +74,8 @@ export default function McqExamModule() {
               questionNumber: idx + 1,
               title: q.title,
               content: q.content_markdown || q.description || '',
-              points: q.points || q.marks || 10,
-              negativePoints: q.negative_points || q.negativeMarks || 0,
+              points: typeof q.points === 'number' ? q.points : (typeof q.marks === 'number' ? q.marks : 10),
+              negativePoints: typeof q.negative_points === 'number' ? q.negative_points : (typeof q.negativeMarks === 'number' ? q.negativeMarks : 0),
               options: rawOpts.map((opt: any) => ({
                 id: opt.id || `opt-${opt.text}`,
                 text: opt.text || opt.option_text || '',
@@ -183,22 +183,38 @@ export default function McqExamModule() {
     }
   };
 
-  // Compute Dynamic MCQ Score with Positive & Negative Marking
+  // Compute Dynamic MCQ Score strictly using marks stored in Supabase:
+  // Correct -> Score += Positive Marks (q.points from Supabase)
+  // Wrong   -> Score += Negative Marks (q.negativePoints from Supabase)
+  // Skipped -> Score += 0
   const computeMcqScore = () => {
     let score = 0;
     let maxPts = 0;
+
     questions.forEach((q) => {
-      maxPts += (q.points || 10);
+      // Always use marks stored in Supabase (never assume from difficulty)
+      const positiveMarks = typeof q.points === 'number' ? q.points : (typeof (q as any).marks === 'number' ? (q as any).marks : 0);
+      const rawNeg = typeof q.negativePoints === 'number' ? q.negativePoints : (typeof (q as any).negative_points === 'number' ? (q as any).negative_points : 0);
+      const negativeMarks = rawNeg > 0 ? -rawNeg : rawNeg;
+
+      maxPts += positiveMarks;
+
       const selectedId = answers[q.id];
-      if (selectedId) {
+      if (!selectedId) {
+        // Skipped: Score += 0
+        score += 0;
+      } else {
         const matchedOpt = q.options.find((opt) => opt.id === selectedId);
         if (matchedOpt && matchedOpt.isCorrect) {
-          score += (q.points || 10);
-        } else if (matchedOpt) {
-          score -= (q.negativePoints || 0);
+          // Correct: Score += Positive Marks
+          score += positiveMarks;
+        } else {
+          // Wrong: Score += Negative Marks
+          score += negativeMarks;
         }
       }
     });
+
     const finalScore = Math.max(0, score);
     return { finalScore, maxPts };
   };
