@@ -256,7 +256,7 @@ export default function CrashFixRoundModule() {
 
       {/* 2. QUESTION SELECTION TABS */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-1.5 flex items-center gap-2">
-        {CRASH_QUESTIONS_2.map((q, idx) => {
+        {crashQuestions.map((q, idx) => {
           const isActive = activeQuestionIndex === idx;
           const res = resultsMap[q.id];
           const isPassed = res?.status === 'PASSED';
