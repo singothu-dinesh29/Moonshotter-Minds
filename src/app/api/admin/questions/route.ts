@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 import { verifyAdminSession } from '@/lib/serverSecurity';
 
 export async function GET(request: NextRequest) {
@@ -7,11 +8,25 @@ export async function GET(request: NextRequest) {
     return security.errorResponse;
   }
 
-  return NextResponse.json({
-    success: true,
-    message: 'Admin session authorized. Question management bank loaded.',
-    timestamp: new Date().toISOString()
-  });
+  try {
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Supabase Question GET Error:', error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      questions: data,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err?.message || 'Database fetch error' }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -22,12 +37,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    
+    // Perform database INSERT / UPSERT operation
+    const { data, error } = await supabase
+      .from('questions')
+      .upsert({
+        ...body,
+        updated_at: new Date().toISOString()
+      })
+      .select();
+
+    if (error) {
+      console.error('Supabase Question POST Error:', error);
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Question authored/updated successfully in Supabase database.',
-      question: body
+      question: data ? data[0] : body
     });
-  } catch (err) {
-    return NextResponse.json({ success: false, error: 'Invalid JSON request payload.' }, { status: 400 });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: err?.message || 'Invalid JSON request payload.' }, { status: 400 });
   }
 }
