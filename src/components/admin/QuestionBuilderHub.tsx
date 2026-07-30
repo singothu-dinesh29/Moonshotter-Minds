@@ -233,6 +233,10 @@ export default function QuestionBuilderHub() {
         .select('*')
         .order('created_at', { ascending: false });
 
+      const { data: dbOptions } = await supabase
+        .from('mcq_options')
+        .select('*');
+
       if (error) {
         console.error('Supabase Questions fetch error:', error);
         setFetchError(error.message || 'Failed to fetch questions from database.');
@@ -241,28 +245,44 @@ export default function QuestionBuilderHub() {
       }
 
       if (dbQuestions) {
-        const mapped: QuestionRecord[] = dbQuestions.map((q: any) => ({
-          id: q.id,
-          title: q.title || 'Untitled Question',
-          description: q.content_markdown || q.description || '',
-          type: q.type || (q.round_id === 'round-2' ? 'Debugging' : q.round_id === 'round-3' ? 'Crash & Fix' : 'MCQ'),
-          language: q.language || 'JavaScript',
-          difficulty: q.difficulty || 'Medium',
-          round: q.round || (q.type === 'Debugging' ? 'Round 2: Algorithmic Debugging' : q.type === 'Crash & Fix' ? 'Round 3: Crash & Fix' : 'Round 1: Speed MCQ'),
-          marks: q.points || q.marks || 10,
-          negativeMarks: q.negative_points || q.negativeMarks || 0,
-          timeLimitSec: q.time_limit_sec || q.timeLimitSec || 60,
-          memoryLimitMb: q.memory_limit_mb || q.memoryLimitMb || 256,
-          expectedOutput: q.expected_output || q.expectedOutput || '',
-          referenceSolution: q.reference_solution || q.referenceSolution || '',
-          buggyCode: q.buggy_code || q.buggyCode || '',
-          testCases: q.test_cases || q.testCases || [],
-          status: (q.status === 'PUBLISHED' || q.status === 'Published' ? 'Published' : q.status === 'ARCHIVED' || q.status === 'Archived' ? 'Archived' : 'Draft') as QuestionStatus,
-          mcqOptions: q.mcq_options || q.mcqOptions || [],
-          category: q.category || 'General Programming',
-          versionHistory: q.version_history || q.versionHistory || [],
-          createdAt: q.created_at || new Date().toISOString()
-        }));
+        const mapped: QuestionRecord[] = dbQuestions.map((q: any) => {
+          let opts = q.mcq_options || q.mcqOptions || [];
+          if ((!opts || opts.length === 0) && dbOptions && dbOptions.length > 0) {
+            const matched = dbOptions
+              .filter((opt: any) => opt.question_id === q.id)
+              .sort((a: any, b: any) => (a.option_order || 0) - (b.option_order || 0));
+            if (matched.length > 0) {
+              opts = matched.map((opt: any) => ({
+                id: opt.id,
+                text: opt.option_text || opt.text,
+                isCorrect: !!opt.is_correct
+              }));
+            }
+          }
+
+          return {
+            id: q.id,
+            title: q.title || 'Untitled Question',
+            description: q.content_markdown || q.description || '',
+            type: q.type || (q.round_id === 'round-2' ? 'Debugging' : q.round_id === 'round-3' ? 'Crash & Fix' : 'MCQ'),
+            language: q.language || 'JavaScript',
+            difficulty: q.difficulty || 'Medium',
+            round: q.round || (q.type === 'Debugging' ? 'Round 2: Algorithmic Debugging' : q.type === 'Crash & Fix' ? 'Round 3: Crash & Fix' : 'Round 1: Speed MCQ'),
+            marks: q.points || q.marks || 10,
+            negativeMarks: q.negative_points || q.negativeMarks || 0,
+            timeLimitSec: q.time_limit_sec || q.timeLimitSec || 60,
+            memoryLimitMb: q.memory_limit_mb || q.memoryLimitMb || 256,
+            expectedOutput: q.expected_output || q.expectedOutput || '',
+            referenceSolution: q.reference_solution || q.referenceSolution || '',
+            buggyCode: q.buggy_code || q.buggyCode || '',
+            testCases: q.test_cases || q.testCases || [],
+            status: (q.status === 'PUBLISHED' || q.status === 'Published' ? 'Published' : q.status === 'ARCHIVED' || q.status === 'Archived' ? 'Archived' : 'Draft') as QuestionStatus,
+            mcqOptions: opts,
+            category: q.category || 'General Programming',
+            versionHistory: q.version_history || q.versionHistory || [],
+            createdAt: q.created_at || new Date().toISOString()
+          };
+        });
         setQuestions(mapped);
       } else {
         setQuestions([]);
@@ -617,6 +637,22 @@ export default function QuestionBuilderHub() {
         setFormValidationError(`Database Save Error: ${error.message}. (Fix: Run ALTER TABLE public.questions DISABLE ROW LEVEL SECURITY; in Supabase SQL Editor)`);
         setIsSaving(false);
         return;
+      }
+
+      // Also persist MCQ options to public.mcq_options table if present
+      if (newRecord.type === 'MCQ' && newRecord.mcqOptions && newRecord.mcqOptions.length > 0) {
+        try {
+          const optionRows = newRecord.mcqOptions.map((opt: any, idx: number) => ({
+            id: isUuid(opt.id) ? opt.id : crypto.randomUUID(),
+            question_id: validId,
+            option_text: opt.text || opt.option_text || '',
+            is_correct: !!opt.isCorrect,
+            option_order: idx + 1
+          }));
+          await supabase.from('mcq_options').upsert(optionRows);
+        } catch (optErr) {
+          console.warn('Persisting to mcq_options table notice:', optErr);
+        }
       }
 
       // Re-fetch question list directly from Supabase database (Single Source of Truth)

@@ -43,6 +43,10 @@ export default function McqExamModule() {
         .from('questions')
         .select('*');
 
+      const { data: dbOptions } = await supabase
+        .from('mcq_options')
+        .select('*');
+
       if (!error && data) {
         // Strict Visibility Policy: Only Published questions are visible to students
         const publishedMcqs = data.filter(
@@ -52,18 +56,30 @@ export default function McqExamModule() {
         );
 
         if (publishedMcqs.length > 0) {
-          const mapped: MCQItem[] = publishedMcqs.map((q: any, idx: number) => ({
-            id: q.id,
-            questionNumber: idx + 1,
-            title: q.title,
-            content: q.content_markdown || q.description || '',
-            points: q.points || q.marks || 10,
-            negativePoints: q.negative_points || q.negativeMarks || 0,
-            options: (q.mcq_options || q.mcqOptions || []).map((opt: any) => ({
-              id: opt.id || `opt-${opt.text}`,
-              text: opt.text || opt.option_text || ''
-            }))
-          }));
+          const mapped: MCQItem[] = publishedMcqs.map((q: any, idx: number) => {
+            let rawOpts = (q.mcq_options || q.mcqOptions || []);
+            if ((!rawOpts || rawOpts.length === 0) && dbOptions && dbOptions.length > 0) {
+              const matched = dbOptions
+                .filter((opt: any) => opt.question_id === q.id)
+                .sort((a: any, b: any) => (a.option_order || 0) - (b.option_order || 0));
+              if (matched.length > 0) {
+                rawOpts = matched;
+              }
+            }
+
+            return {
+              id: q.id,
+              questionNumber: idx + 1,
+              title: q.title,
+              content: q.content_markdown || q.description || '',
+              points: q.points || q.marks || 10,
+              negativePoints: q.negative_points || q.negativeMarks || 0,
+              options: rawOpts.map((opt: any) => ({
+                id: opt.id || `opt-${opt.text}`,
+                text: opt.text || opt.option_text || ''
+              }))
+            };
+          });
 
           if (!isExamActiveRef.current) {
             setQuestions(mapped);
