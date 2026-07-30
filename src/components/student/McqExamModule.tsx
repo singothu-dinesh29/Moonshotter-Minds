@@ -34,6 +34,8 @@ export default function McqExamModule() {
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [submittedScore, setSubmittedScore] = useState<number | null>(null);
 
+  const isExamActiveRef = React.useRef(false);
+
   // Fetch Published MCQ Questions from Supabase DB with Realtime Sync
   const fetchPublishedMcqs = async () => {
     try {
@@ -67,25 +69,55 @@ export default function McqExamModule() {
               text: opt.text || opt.option_text || ''
             }))
           }));
-          setQuestions(mapped);
+
+          if (!isExamActiveRef.current) {
+            setQuestions(mapped);
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('active_mcq_questions', JSON.stringify(mapped));
+            }
+          }
           return;
         }
       }
-      setQuestions(getRandomizedQuestions());
+      if (!isExamActiveRef.current) {
+        setQuestions(getRandomizedQuestions());
+      }
     } catch (err) {
       console.error('Error fetching published MCQs:', err);
-      setQuestions(getRandomizedQuestions());
+      if (!isExamActiveRef.current) {
+        setQuestions(getRandomizedQuestions());
+      }
     }
   };
 
   useEffect(() => {
-    fetchPublishedMcqs();
+    // Active Exam Snapshot Check: If candidate already started exam, load saved snapshot
+    if (typeof window !== 'undefined') {
+      const savedSnapshot = sessionStorage.getItem('active_mcq_questions');
+      if (savedSnapshot) {
+        try {
+          const parsed = JSON.parse(savedSnapshot);
+          if (parsed && parsed.length > 0) {
+            setQuestions(parsed);
+            isExamActiveRef.current = true;
+          }
+        } catch (e) {}
+      }
+    }
 
-    // Supabase Realtime WebSocket Listener for Admin Question Edits
+    if (!isExamActiveRef.current) {
+      fetchPublishedMcqs();
+    }
+
+    // Supabase Realtime WebSocket Listener
     const channel = supabase
       .channel('realtime_student_mcq_arena')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
-        fetchPublishedMcqs();
+        // Students NOT yet started receive immediate live updates.
+        // Students ALREADY taking exam preserve their assigned question set.
+        if (!isExamActiveRef.current) {
+          fetchPublishedMcqs();
+        }
       })
       .subscribe();
 

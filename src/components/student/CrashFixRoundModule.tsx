@@ -34,6 +34,8 @@ export default function CrashFixRoundModule() {
     [CRASH_QUESTIONS_2[1].id]: CRASH_QUESTIONS_2[1].initialCode,
   });
 
+  const isExamActiveRef = React.useRef(false);
+
   const fetchPublishedCrashQuestions = async () => {
     try {
       const { data, error } = await supabase
@@ -62,12 +64,17 @@ export default function CrashFixRoundModule() {
             testCases: CRASH_QUESTIONS_2[0].testCases
           }));
 
-          setCrashQuestions(mapped);
-          const newCodeMap: Record<string, string> = {};
-          mapped.forEach((q) => {
-            newCodeMap[q.id] = q.initialCode;
-          });
-          setCodeMap(newCodeMap);
+          if (!isExamActiveRef.current) {
+            setCrashQuestions(mapped);
+            const newCodeMap: Record<string, string> = {};
+            mapped.forEach((q) => {
+              newCodeMap[q.id] = q.initialCode;
+            });
+            setCodeMap(newCodeMap);
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('active_crash_questions', JSON.stringify(mapped));
+            }
+          }
         }
       }
     } catch (err) {
@@ -76,13 +83,38 @@ export default function CrashFixRoundModule() {
   };
 
   useEffect(() => {
-    fetchPublishedCrashQuestions();
+    // Active Exam Snapshot Check
+    if (typeof window !== 'undefined') {
+      const savedSnapshot = sessionStorage.getItem('active_crash_questions');
+      if (savedSnapshot) {
+        try {
+          const parsed = JSON.parse(savedSnapshot);
+          if (parsed && parsed.length > 0) {
+            setCrashQuestions(parsed);
+            const newCodeMap: Record<string, string> = {};
+            parsed.forEach((q: any) => {
+              newCodeMap[q.id] = q.initialCode;
+            });
+            setCodeMap(newCodeMap);
+            isExamActiveRef.current = true;
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (!isExamActiveRef.current) {
+      fetchPublishedCrashQuestions();
+    }
 
     // Supabase Realtime WebSocket Listener for Admin Question Edits
     const channel = supabase
       .channel('realtime_student_crash_arena')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
-        fetchPublishedCrashQuestions();
+        // Students NOT yet started receive immediate live updates.
+        // Students ALREADY taking exam preserve their assigned question set.
+        if (!isExamActiveRef.current) {
+          fetchPublishedCrashQuestions();
+        }
       })
       .subscribe();
 

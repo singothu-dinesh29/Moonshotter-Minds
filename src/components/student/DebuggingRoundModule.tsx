@@ -29,6 +29,8 @@ export default function DebuggingRoundModule() {
   const [code, setCode] = useState<string>(MOCK_DEBUG_QUESTION.coding.initial_code);
   const [language, setLanguage] = useState<string>(MOCK_DEBUG_QUESTION.coding.language || 'javascript');
 
+  const isExamActiveRef = React.useRef(false);
+
   const fetchPublishedDebugQuestion = async () => {
     try {
       const { data, error } = await supabase
@@ -60,9 +62,15 @@ export default function DebuggingRoundModule() {
               test_cases: MOCK_DEBUG_QUESTION.coding.test_cases
             }
           };
-          setQuestionSpec(spec);
-          setCode(spec.coding.initial_code);
-          setLanguage(spec.coding.language);
+
+          if (!isExamActiveRef.current) {
+            setQuestionSpec(spec);
+            setCode(spec.coding.initial_code);
+            setLanguage(spec.coding.language);
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('active_debug_spec', JSON.stringify(spec));
+            }
+          }
         }
       }
     } catch (err) {
@@ -71,13 +79,34 @@ export default function DebuggingRoundModule() {
   };
 
   useEffect(() => {
-    fetchPublishedDebugQuestion();
+    // Active Exam Snapshot Check
+    if (typeof window !== 'undefined') {
+      const savedSnapshot = sessionStorage.getItem('active_debug_spec');
+      if (savedSnapshot) {
+        try {
+          const parsed = JSON.parse(savedSnapshot);
+          if (parsed && parsed.id) {
+            setQuestionSpec(parsed);
+            setCode(parsed.coding.initial_code);
+            setLanguage(parsed.coding.language);
+            isExamActiveRef.current = true;
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (!isExamActiveRef.current) {
+      fetchPublishedDebugQuestion();
+    }
 
     // Supabase Realtime WebSocket Listener for Admin Question Edits
     const channel = supabase
       .channel('realtime_student_debug_arena')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
-        fetchPublishedDebugQuestion();
+        // Only update if student has not yet started active exam
+        if (!isExamActiveRef.current) {
+          fetchPublishedDebugQuestion();
+        }
       })
       .subscribe();
 
