@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation';
 import { Plus, Trash2, Save, Zap, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
+import { supabase } from '@/lib/supabase';
+
 export default function McqBuilderPage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [markdown, setMarkdown] = useState('');
   const [points, setPoints] = useState(10);
   const [negativePoints, setNegativePoints] = useState(2);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [options, setOptions] = useState([
     { text: '', isCorrect: true },
@@ -33,9 +36,53 @@ export default function McqBuilderPage() {
     setOptions(next);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('MCQ Question saved successfully to Supabase Question Bank!');
+    const autoTitle = title.trim() || markdown.split('\n')[0].replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 45) || 'MCQ Question';
+
+    const hasEmptyOption = options.some((opt) => !opt.text.trim());
+    if (hasEmptyOption) {
+      alert('All choice option text fields must be filled before saving.');
+      return;
+    }
+
+    setIsSaving(true);
+    const mcqOptions = options.map((opt, idx) => ({
+      id: `opt-${Date.now()}-${idx}`,
+      text: opt.text,
+      isCorrect: opt.isCorrect,
+      order: idx + 1
+    }));
+
+    const qRecord = {
+      id: `q-${Date.now()}`,
+      title: autoTitle,
+      description: markdown,
+      content_markdown: markdown,
+      type: 'MCQ',
+      language: 'JavaScript',
+      difficulty: 'Medium',
+      round: 'Round 1: Speed MCQ',
+      round_id: 'round-1',
+      points,
+      marks: points,
+      negative_points: negativePoints,
+      negativeMarks: negativePoints,
+      status: 'PUBLISHED',
+      mcq_options: mcqOptions,
+      mcqOptions: mcqOptions,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('questions').upsert(qRecord).select();
+    if (error) {
+      alert(`Database Error: ${error.message}`);
+      setIsSaving(false);
+      return;
+    }
+
+    setIsSaving(false);
+    alert('MCQ Question saved and persisted to Supabase database successfully!');
     router.push('/admin/questions');
   };
 

@@ -195,8 +195,9 @@ export default function QuestionBuilderHub() {
   const [selectedMcqOption, setSelectedMcqOption] = useState<string>('');
   const [studentCode, setStudentCode] = useState<string>('');
 
-  // Form State Validation
+  // Form State Validation & Loading
   const [formValidationError, setFormValidationError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Form State
   const [formData, setFormData] = useState<Partial<QuestionRecord>>({
@@ -517,53 +518,65 @@ export default function QuestionBuilderHub() {
       createdAt: editingQuestion ? editingQuestion.createdAt : new Date().toISOString()
     } as QuestionRecord;
 
-    // Persist to Supabase database
+    // Persist strictly to Supabase database & check response
+    const payload = {
+      id: newRecord.id,
+      title: newRecord.title,
+      content_markdown: newRecord.description || '',
+      description: newRecord.description || '',
+      type: newRecord.type || 'MCQ',
+      language: newRecord.language || 'JavaScript',
+      difficulty: newRecord.difficulty || 'Medium',
+      round: newRecord.round || 'Round 1: Speed MCQ',
+      round_id: newRecord.type === 'MCQ' ? 'round-1' : newRecord.type === 'Debugging' ? 'round-2' : 'round-3',
+      points: newRecord.marks || 10,
+      marks: newRecord.marks || 10,
+      negative_points: newRecord.negativeMarks || 0,
+      negativeMarks: newRecord.negativeMarks || 0,
+      time_limit_sec: newRecord.timeLimitSec || 60,
+      timeLimitSec: newRecord.timeLimitSec || 60,
+      memory_limit_mb: newRecord.memoryLimitMb || 256,
+      memoryLimitMb: newRecord.memoryLimitMb || 256,
+      expected_output: newRecord.expectedOutput || '',
+      expectedOutput: newRecord.expectedOutput || '',
+      reference_solution: newRecord.referenceSolution || '',
+      referenceSolution: newRecord.referenceSolution || '',
+      buggy_code: newRecord.buggyCode || newRecord.referenceSolution || '',
+      buggyCode: newRecord.buggyCode || newRecord.referenceSolution || '',
+      test_cases: newRecord.testCases || [],
+      testCases: newRecord.testCases || [],
+      status: newRecord.status === 'Published' ? 'PUBLISHED' : newRecord.status === 'Archived' ? 'ARCHIVED' : 'DRAFT',
+      mcq_options: newRecord.mcqOptions || [],
+      mcqOptions: newRecord.mcqOptions || [],
+      category: newRecord.category || 'General',
+      version_history: newRecord.versionHistory || [],
+      versionHistory: newRecord.versionHistory || [],
+      updated_at: new Date().toISOString()
+    };
+
+    setIsSaving(true);
     try {
-      await supabase.from('questions').upsert({
-        id: newRecord.id,
-        title: newRecord.title,
-        content_markdown: newRecord.description,
-        description: newRecord.description,
-        type: newRecord.type,
-        language: newRecord.language,
-        difficulty: newRecord.difficulty,
-        round: newRecord.round,
-        round_id: newRecord.type === 'MCQ' ? 'round-1' : newRecord.type === 'Debugging' ? 'round-2' : 'round-3',
-        points: newRecord.marks,
-        marks: newRecord.marks,
-        negative_points: newRecord.negativeMarks,
-        negativeMarks: newRecord.negativeMarks,
-        time_limit_sec: newRecord.timeLimitSec,
-        timeLimitSec: newRecord.timeLimitSec,
-        memory_limit_mb: newRecord.memoryLimitMb || 256,
-        memoryLimitMb: newRecord.memoryLimitMb || 256,
-        expected_output: newRecord.expectedOutput,
-        expectedOutput: newRecord.expectedOutput,
-        reference_solution: newRecord.referenceSolution,
-        referenceSolution: newRecord.referenceSolution,
-        buggy_code: newRecord.buggyCode || newRecord.referenceSolution,
-        buggyCode: newRecord.buggyCode || newRecord.referenceSolution,
-        test_cases: newRecord.testCases,
-        testCases: newRecord.testCases,
-        status: newRecord.status === 'Published' ? 'PUBLISHED' : newRecord.status === 'Archived' ? 'ARCHIVED' : 'DRAFT',
-        mcq_options: newRecord.mcqOptions,
-        mcqOptions: newRecord.mcqOptions,
-        category: newRecord.category,
-        version_history: newRecord.versionHistory,
-        versionHistory: newRecord.versionHistory,
-        updated_at: new Date().toISOString()
-      });
-    } catch (err) {
-      console.error('Error saving question to Supabase:', err);
-    }
+      const { data, error } = await supabase
+        .from('questions')
+        .upsert(payload)
+        .select();
 
-    if (editingQuestion) {
-      setQuestions((prev) => prev.map((q) => (q.id === editingQuestion.id ? newRecord : q)));
-    } else {
-      setQuestions([newRecord, ...questions]);
-    }
+      if (error) {
+        console.error('Database Error saving question to Supabase:', error);
+        setFormValidationError(`Database Save Error: ${error.message || 'Failed to persist question to Supabase.'}`);
+        setIsSaving(false);
+        return;
+      }
 
-    setShowModal(false);
+      // Re-fetch question list directly from Supabase database (Single Source of Truth)
+      await fetchQuestionsFromSupabase();
+      setIsSaving(false);
+      setShowModal(false);
+    } catch (err: any) {
+      console.error('Unexpected error saving question to Supabase:', err);
+      setFormValidationError(`Database Error: ${err?.message || 'Connection error to Supabase'}`);
+      setIsSaving(false);
+    }
   };
 
   // Restore Previous Version
@@ -1610,9 +1623,10 @@ export default function QuestionBuilderHub() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                  disabled={isSaving}
+                  className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-yellow-400 disabled:opacity-50 text-slate-950 font-black shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
                 >
-                  <Save className="h-4 w-4" /> Save Question & Create Version Log
+                  <Save className="h-4 w-4" /> {isSaving ? 'Inserting into Supabase Database...' : 'Save Question & Persist to Database'}
                 </button>
               </div>
 

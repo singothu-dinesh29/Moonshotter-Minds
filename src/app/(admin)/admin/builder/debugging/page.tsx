@@ -5,15 +5,49 @@ import { useRouter } from 'next/navigation';
 import { Sliders, Save, ArrowLeft, Plus } from 'lucide-react';
 import Link from 'next/link';
 
+import { supabase } from '@/lib/supabase';
+
 export default function DebuggingBuilderPage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [markdown, setMarkdown] = useState('');
   const [buggyCode, setBuggyCode] = useState('function debugTarget(arr) {\n  // Buggy implementation\n}');
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Algorithmic Debugging Question saved successfully to Supabase!');
+    const autoTitle = title.trim() || markdown.split('\n')[0].replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 45) || 'Debugging Question';
+
+    setIsSaving(true);
+    const qRecord = {
+      id: `q-${Date.now()}`,
+      title: autoTitle,
+      description: markdown,
+      content_markdown: markdown,
+      type: 'Debugging',
+      language: 'JavaScript',
+      difficulty: 'Medium',
+      round: 'Round 2: Algorithmic Debugging',
+      round_id: 'round-2',
+      points: 40,
+      marks: 40,
+      buggy_code: buggyCode,
+      buggyCode: buggyCode,
+      reference_solution: buggyCode,
+      referenceSolution: buggyCode,
+      status: 'PUBLISHED',
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('questions').upsert(qRecord).select();
+    if (error) {
+      alert(`Database Error: ${error.message}`);
+      setIsSaving(false);
+      return;
+    }
+
+    setIsSaving(false);
+    alert('Debugging Question saved and persisted to Supabase database successfully!');
     router.push('/admin/questions');
   };
 

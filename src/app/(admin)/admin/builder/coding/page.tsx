@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Terminal, Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
+import { supabase } from '@/lib/supabase';
+
 export default function CodingBuilderPage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
@@ -13,14 +15,48 @@ export default function CodingBuilderPage() {
   const [testCases, setTestCases] = useState([
     { input: 'solution([1, 2, 3])', expected_output: '[3, 2, 1]' },
   ]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const addTestCase = () => {
     setTestCases([...testCases, { input: '', expected_output: '' }]);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Coding Question saved successfully to Supabase!');
+    const autoTitle = title.trim() || markdown.split('\n')[0].replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 45) || 'Crash & Fix Question';
+
+    setIsSaving(true);
+    const qRecord = {
+      id: `q-${Date.now()}`,
+      title: autoTitle,
+      description: markdown,
+      content_markdown: markdown,
+      type: 'Crash & Fix',
+      language: 'JavaScript',
+      difficulty: 'Hard',
+      round: 'Round 3: Crash & Fix',
+      round_id: 'round-3',
+      points: 50,
+      marks: 50,
+      buggy_code: initialCode,
+      buggyCode: initialCode,
+      reference_solution: initialCode,
+      referenceSolution: initialCode,
+      test_cases: testCases,
+      testCases: testCases,
+      status: 'PUBLISHED',
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('questions').upsert(qRecord).select();
+    if (error) {
+      alert(`Database Error: ${error.message}`);
+      setIsSaving(false);
+      return;
+    }
+
+    setIsSaving(false);
+    alert('Crash & Fix Question saved and persisted to Supabase database successfully!');
     router.push('/admin/questions');
   };
 
