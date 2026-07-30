@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { MOCK_EVENT, MOCK_ROUNDS, supabase } from '@/lib/supabase';
 import { formatSeconds } from '@/lib/utils';
-import { getDynamicScorecard, DynamicScorecard } from '@/lib/scoringEngine';
+import { getDynamicScorecard, calculatePublishedQuestionsMaxScore, DynamicScorecard } from '@/lib/scoringEngine';
 import { 
   User, 
   School, 
