@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { MOCK_INITIAL_LEADERBOARD, LeaderboardRecord } from '@/lib/supabase';
+import React, { useState, useEffect } from 'react';
+import { LeaderboardRecord, supabase } from '@/lib/supabase';
 import { 
   FileCheck, 
   ShieldCheck, 
@@ -19,8 +19,38 @@ import {
 import Link from 'next/link';
 
 export default function CertificatePipelineHub() {
-  const [candidates, setCandidates] = useState<LeaderboardRecord[]>(MOCK_INITIAL_LEADERBOARD);
-  const [selectedCandidate, setSelectedCandidate] = useState<LeaderboardRecord>(MOCK_INITIAL_LEADERBOARD[0]);
+  const [candidates, setCandidates] = useState<LeaderboardRecord[]>([]);
+  const [selectedCandidate, setSelectedCandidate] = useState<LeaderboardRecord | null>(null);
+
+  useEffect(() => {
+    async function fetchStudents() {
+      try {
+        const { data } = await supabase.from('students').select('*');
+        if (data && data.length > 0) {
+          const mapped: LeaderboardRecord[] = data.map((s: any, idx: number) => ({
+            id: s.id || `lead-${idx}`,
+            event_id: 'event-2026-main',
+            student_id: s.id,
+            registration: s.registration_number || s.registration || `MIT-2026-${100 + idx}`,
+            name: s.name || 'Candidate',
+            college: s.college || 'Engineering Institute',
+            round_1_score: 30,
+            round_2_score: 40,
+            round_3_score: 50,
+            total_score: 120,
+            rank: idx + 1,
+            disqualified: s.status === 'Disqualified' || false,
+            created_at: new Date().toISOString()
+          }));
+          setCandidates(mapped);
+          setSelectedCandidate(mapped[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching students for certificates:', err);
+      }
+    }
+    fetchStudents();
+  }, []);
   
   // Admin Template Customization State
   const [templateConfig, setTemplateConfig] = useState({

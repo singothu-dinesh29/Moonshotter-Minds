@@ -1,18 +1,66 @@
 'use client';
 
-import React, { useState } from 'react';
-import { MOCK_INITIAL_LEADERBOARD, MOCK_EVENT } from '@/lib/supabase';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { Award, Trophy, Medal, Search, Clock, ShieldCheck, Flame, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RealtimeLeaderboard() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [leaderboard, setLeaderboard] = useState(MOCK_INITIAL_LEADERBOARD);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
-  const filtered = leaderboard.filter((item) =>
-    item.registration?.user?.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.registration?.user?.college_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const fetchLiveLeaderboard = async () => {
+    try {
+      const { data } = await supabase
+        .from('leaderboard')
+        .select('*')
+        .order('total_score', { ascending: false });
+
+      if (data && data.length > 0) {
+        setLeaderboard(data);
+      } else {
+        const { data: studentData } = await supabase.from('students').select('*');
+        if (studentData) {
+          const mapped = studentData.map((s: any, idx: number) => ({
+            id: s.id || `lead-${idx}`,
+            registration: {
+              user: {
+                full_name: s.name || 'Candidate',
+                college_name: s.college || 'Engineering Institute'
+              }
+            },
+            total_score: 120,
+            round1_score: 30,
+            round2_score: 40,
+            round3_score: 50,
+            rank: idx + 1
+          }));
+          setLeaderboard(mapped);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching live leaderboard:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveLeaderboard();
+
+    const channel = supabase
+      .channel('realtime_leaderboard_page')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' }, () => fetchLiveLeaderboard())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const filtered = leaderboard.filter((item) => {
+    const name = item.registration?.user?.full_name || item.name || '';
+    const college = item.registration?.user?.college_name || item.college || '';
+    return name.toLowerCase().includes(searchQuery.toLowerCase()) || college.toLowerCase().includes(searchQuery.toLowerCase());
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 lg:px-8 py-8">

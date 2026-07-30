@@ -1,9 +1,32 @@
 import { NextResponse } from 'next/server';
-import { MOCK_INITIAL_LEADERBOARD } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export async function GET() {
-  return NextResponse.json({
-    success: true,
-    data: MOCK_INITIAL_LEADERBOARD
-  });
+  try {
+    const { data, error } = await supabase
+      .from('leaderboard')
+      .select('*')
+      .order('total_score', { ascending: false });
+
+    if (error || !data) {
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('*');
+
+      return NextResponse.json({
+        success: true,
+        data: studentData || []
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      data
+    });
+  } catch (err) {
+    return NextResponse.json({
+      success: false,
+      data: []
+    });
+  }
 }

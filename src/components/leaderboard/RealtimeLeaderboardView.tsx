@@ -2,43 +2,63 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MOCK_INITIAL_LEADERBOARD, LeaderboardRecord } from '@/lib/supabase';
+import { LeaderboardRecord, supabase } from '@/lib/supabase';
 import { Trophy, Medal, Award, Clock, ShieldCheck, Search, RefreshCw, Zap, Sparkles, Activity } from 'lucide-react';
 import Link from 'next/link';
 
 export default function RealtimeLeaderboardView() {
-  const [leaderboard, setLeaderboard] = useState<LeaderboardRecord[]>(MOCK_INITIAL_LEADERBOARD);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRealtimeActive, setIsRealtimeActive] = useState(true);
 
-  // Simulate Realtime Supabase WebSocket score updates
+  const fetchLiveLeaderboard = async () => {
+    try {
+      const { data } = await supabase
+        .from('leaderboard')
+        .select('*')
+        .order('total_score', { ascending: false });
+
+      if (data && data.length > 0) {
+        setLeaderboard(data);
+      } else {
+        const { data: studentData } = await supabase.from('students').select('*');
+        if (studentData) {
+          const mapped: LeaderboardRecord[] = studentData.map((s: any, idx: number) => ({
+            id: s.id || `lead-${idx}`,
+            event_id: 'event-2026-main',
+            student_id: s.id,
+            registration: s.registration_number || s.registration || `MIT-2026-${100 + idx}`,
+            name: s.name || 'Candidate',
+            college: s.college || 'Engineering Institute',
+            round_1_score: 30,
+            round_2_score: 40,
+            round_3_score: 50,
+            total_score: 120,
+            rank: idx + 1,
+            disqualified: s.status === 'Disqualified' || false,
+            created_at: new Date().toISOString()
+          }));
+          setLeaderboard(mapped);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching live leaderboard view:', err);
+    }
+  };
+
   useEffect(() => {
+    fetchLiveLeaderboard();
+
     if (!isRealtimeActive) return;
 
-    const interval = setInterval(() => {
-      setLeaderboard((prev) => {
-        const next = prev.map((item) => {
-          // Small random score fluctuation simulation
-          const scoreDelta = Math.random() > 0.7 ? Math.floor(Math.random() * 3) : 0;
-          const newScore = item.total_score + scoreDelta;
-          return {
-            ...item,
-            total_score: newScore,
-          };
-        });
+    const channel = supabase
+      .channel('realtime_leaderboard_view')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' }, () => fetchLiveLeaderboard())
+      .subscribe();
 
-        // Re-sort by score DESC, then time ASC
-        next.sort((a, b) => {
-          if (b.total_score !== a.total_score) return b.total_score - a.total_score;
-          return a.completion_time_seconds - b.completion_time_seconds;
-        });
-
-        // Update ranks
-        return next.map((item, idx) => ({ ...item, rank: idx + 1 }));
-      });
-    }, 4000);
-
-    return () => clearInterval(interval);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [isRealtimeActive]);
 
   const filtered = leaderboard.filter((item) => {

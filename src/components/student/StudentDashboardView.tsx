@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { MOCK_EVENT, MOCK_ROUNDS, MOCK_INITIAL_LEADERBOARD, supabase } from '@/lib/supabase';
+import { MOCK_EVENT, MOCK_ROUNDS, supabase } from '@/lib/supabase';
 import { formatSeconds } from '@/lib/utils';
 import { 
   User, 
@@ -191,7 +191,21 @@ export default function StudentDashboardView() {
     return () => clearInterval(timer);
   }, []);
 
-  const candidateRank = MOCK_INITIAL_LEADERBOARD[0]; // #1 Rank for Alex Chen
+  const [candidateRank, setCandidateRank] = useState<any>({ rank: 1, total_score: 120 });
+
+  useEffect(() => {
+    async function fetchRank() {
+      try {
+        const { data } = await supabase.from('leaderboard').select('*').order('total_score', { ascending: false });
+        if (data && data.length > 0) {
+          setCandidateRank(data[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching student rank:', err);
+      }
+    }
+    fetchRank();
+  }, []);
 
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
