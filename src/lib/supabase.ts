@@ -314,3 +314,75 @@ export const MOCK_CHEATING_LOGS: CheatingLogRecord[] = [
     }
   }
 ];
+
+export async function createExamSnapshot(payload: {
+  studentId: string;
+  round: string;
+  questions: any[];
+  timer: number;
+  marks: number;
+  negativeMarks: number;
+}) {
+  const snapshotRecord = {
+    id: `snap-${Date.now()}-${payload.studentId}-${payload.round.replace(/\s+/g, '_')}`,
+    student_id: payload.studentId,
+    round: payload.round,
+    question_ids: payload.questions.map((q) => q.id),
+    question_order: payload.questions.map((q, idx) => ({ id: q.id, index: idx + 1 })),
+    mcq_option_order: payload.questions.map((q) => ({
+      id: q.id,
+      options: q.options ? q.options.map((o: any) => o.id || o.text) : []
+    })),
+    timer: payload.timer,
+    marks: payload.marks,
+    negative_marks: payload.negativeMarks,
+    snapshot_data: payload.questions,
+    created_at: new Date().toISOString()
+  };
+
+  try {
+    await supabase.from('exam_snapshots').upsert(snapshotRecord);
+  } catch (err) {
+    console.error('Error creating exam snapshot in Supabase:', err);
+  }
+
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem(`exam_snapshot_${payload.studentId}_${payload.round}`, JSON.stringify(snapshotRecord));
+  }
+
+  return snapshotRecord;
+}
+
+export async function fetchExamSnapshot(studentId: string, round: string) {
+  // Check sessionStorage first for instant load
+  if (typeof window !== 'undefined') {
+    const local = sessionStorage.getItem(`exam_snapshot_${studentId}_${round}`);
+    if (local) {
+      try {
+        return JSON.parse(local);
+      } catch (e) {}
+    }
+  }
+
+  // Fetch from Supabase
+  try {
+    const { data } = await supabase
+      .from('exam_snapshots')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('round', round)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`exam_snapshot_${studentId}_${round}`, JSON.stringify(data[0]));
+      }
+      return data[0];
+    }
+  } catch (err) {
+    console.error('Error fetching exam snapshot from Supabase:', err);
+  }
+
+  return null;
+}

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { CRASH_QUESTIONS_2, CrashQuestionItem } from '@/lib/crashBank';
-import { supabase } from '@/lib/supabase';
+import { supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { 
@@ -71,9 +71,14 @@ export default function CrashFixRoundModule() {
               newCodeMap[q.id] = q.initialCode;
             });
             setCodeMap(newCodeMap);
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('active_crash_questions', JSON.stringify(mapped));
-            }
+            createExamSnapshot({
+              studentId: 'candidate-2026-cs-942',
+              round: 'ROUND_03_CRASH_FIX',
+              questions: mapped,
+              timer: 15 * 60,
+              marks: mapped.reduce((sum, q) => sum + q.points, 0),
+              negativeMarks: 0
+            });
           }
         }
       }
@@ -83,28 +88,24 @@ export default function CrashFixRoundModule() {
   };
 
   useEffect(() => {
-    // Active Exam Snapshot Check
-    if (typeof window !== 'undefined') {
-      const savedSnapshot = sessionStorage.getItem('active_crash_questions');
-      if (savedSnapshot) {
-        try {
-          const parsed = JSON.parse(savedSnapshot);
-          if (parsed && parsed.length > 0) {
-            setCrashQuestions(parsed);
-            const newCodeMap: Record<string, string> = {};
-            parsed.forEach((q: any) => {
-              newCodeMap[q.id] = q.initialCode;
-            });
-            setCodeMap(newCodeMap);
-            isExamActiveRef.current = true;
-          }
-        } catch (e) {}
+    // Active Exam Snapshot Check: Fetch from Supabase
+    async function loadSnapshot() {
+      const snap = await fetchExamSnapshot('candidate-2026-cs-942', 'ROUND_03_CRASH_FIX');
+      if (snap && snap.snapshot_data && snap.snapshot_data.length > 0) {
+        const mapped = snap.snapshot_data;
+        setCrashQuestions(mapped);
+        const newCodeMap: Record<string, string> = {};
+        mapped.forEach((q: any) => {
+          newCodeMap[q.id] = q.initialCode || q.reference_solution || '';
+        });
+        setCodeMap(newCodeMap);
+        isExamActiveRef.current = true;
+      } else {
+        fetchPublishedCrashQuestions();
       }
     }
 
-    if (!isExamActiveRef.current) {
-      fetchPublishedCrashQuestions();
-    }
+    loadSnapshot();
 
     // Supabase Realtime WebSocket Listener for Admin Question Edits
     const channel = supabase

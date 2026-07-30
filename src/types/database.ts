@@ -92,6 +92,20 @@ export interface CodingQuestionRecord {
   created_at: string;
 }
 
+export interface ExamSnapshotRecord {
+  id: string;
+  student_id: string;
+  round: string;
+  question_ids: string[];
+  question_order: { id: string; index: number }[];
+  mcq_option_order?: { id: string; options: string[] }[];
+  timer: number;
+  marks: number;
+  negative_marks: number;
+  snapshot_data: any;
+  created_at: string;
+}
+
 export type RegistrationStatus = 'REGISTERED' | 'IN_PROGRESS' | 'SUBMITTED' | 'DISQUALIFIED';
 
 export interface RegistrationRecord {

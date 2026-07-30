@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { MOCK_DEBUG_QUESTION, supabase } from '@/lib/supabase';
+import { MOCK_DEBUG_QUESTION, supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { 
@@ -67,9 +67,14 @@ export default function DebuggingRoundModule() {
             setQuestionSpec(spec);
             setCode(spec.coding.initial_code);
             setLanguage(spec.coding.language);
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('active_debug_spec', JSON.stringify(spec));
-            }
+            createExamSnapshot({
+              studentId: 'candidate-2026-cs-942',
+              round: 'ROUND_02_DEBUGGING',
+              questions: [spec],
+              timer: 15 * 60,
+              marks: spec.points,
+              negativeMarks: spec.negative_points
+            });
           }
         }
       }
@@ -79,25 +84,21 @@ export default function DebuggingRoundModule() {
   };
 
   useEffect(() => {
-    // Active Exam Snapshot Check
-    if (typeof window !== 'undefined') {
-      const savedSnapshot = sessionStorage.getItem('active_debug_spec');
-      if (savedSnapshot) {
-        try {
-          const parsed = JSON.parse(savedSnapshot);
-          if (parsed && parsed.id) {
-            setQuestionSpec(parsed);
-            setCode(parsed.coding.initial_code);
-            setLanguage(parsed.coding.language);
-            isExamActiveRef.current = true;
-          }
-        } catch (e) {}
+    // Active Exam Snapshot Check: Fetch from Supabase
+    async function loadSnapshot() {
+      const snap = await fetchExamSnapshot('candidate-2026-cs-942', 'ROUND_02_DEBUGGING');
+      if (snap && snap.snapshot_data && snap.snapshot_data.length > 0) {
+        const spec = snap.snapshot_data[0];
+        setQuestionSpec(spec);
+        setCode(spec.coding ? spec.coding.initial_code : spec.initialCode || '');
+        setLanguage(spec.coding ? spec.coding.language : spec.language || 'javascript');
+        isExamActiveRef.current = true;
+      } else {
+        fetchPublishedDebugQuestion();
       }
     }
 
-    if (!isExamActiveRef.current) {
-      fetchPublishedDebugQuestion();
-    }
+    loadSnapshot();
 
     // Supabase Realtime WebSocket Listener for Admin Question Edits
     const channel = supabase

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getRandomizedQuestions, MCQItem } from '@/lib/mcqBank';
 import { formatSeconds } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
 import { 
   Clock, 
   CheckCircle2, 
@@ -72,42 +72,49 @@ export default function McqExamModule() {
 
           if (!isExamActiveRef.current) {
             setQuestions(mapped);
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('active_mcq_questions', JSON.stringify(mapped));
-            }
+            // Create Immutable Exam Snapshot in Supabase
+            createExamSnapshot({
+              studentId: 'candidate-2026-cs-942',
+              round: 'ROUND_01_MCQ',
+              questions: mapped,
+              timer: 15 * 60,
+              marks: mapped.reduce((sum, q) => sum + q.points, 0),
+              negativeMarks: mapped[0]?.negativePoints || 2
+            });
           }
           return;
         }
       }
       if (!isExamActiveRef.current) {
-        setQuestions(getRandomizedQuestions());
+        const fallback = getRandomizedQuestions();
+        setQuestions(fallback);
+        createExamSnapshot({
+          studentId: 'candidate-2026-cs-942',
+          round: 'ROUND_01_MCQ',
+          questions: fallback,
+          timer: 15 * 60,
+          marks: 30,
+          negativeMarks: 2
+        });
       }
     } catch (err) {
       console.error('Error fetching published MCQs:', err);
-      if (!isExamActiveRef.current) {
-        setQuestions(getRandomizedQuestions());
-      }
     }
   };
 
   useEffect(() => {
-    // Active Exam Snapshot Check: If candidate already started exam, load saved snapshot
-    if (typeof window !== 'undefined') {
-      const savedSnapshot = sessionStorage.getItem('active_mcq_questions');
-      if (savedSnapshot) {
-        try {
-          const parsed = JSON.parse(savedSnapshot);
-          if (parsed && parsed.length > 0) {
-            setQuestions(parsed);
-            isExamActiveRef.current = true;
-          }
-        } catch (e) {}
+    // Active Exam Snapshot Check: If candidate already started exam, load saved snapshot from Supabase / Session
+    async function loadSnapshot() {
+      const snap = await fetchExamSnapshot('candidate-2026-cs-942', 'ROUND_01_MCQ');
+      if (snap && snap.snapshot_data && snap.snapshot_data.length > 0) {
+        setQuestions(snap.snapshot_data);
+        isExamActiveRef.current = true;
+      } else {
+        fetchPublishedMcqs();
       }
     }
 
-    if (!isExamActiveRef.current) {
-      fetchPublishedMcqs();
-    }
+    loadSnapshot();
 
     // Supabase Realtime WebSocket Listener
     const channel = supabase
