@@ -113,17 +113,31 @@ export function saveDynamicScorecard(update: Partial<DynamicScorecard>): Dynamic
   return next;
 }
 
-export async function syncScorecardToSupabase(scorecard: DynamicScorecard) {
+export async function syncScorecardToSupabase(scorecard: DynamicScorecard, targetUserId?: string) {
   try {
-    const studentId = 'candidate-2026-cs-942';
+    let studentId = targetUserId || 'candidate-2026-cs-942';
+
+    if (!targetUserId && typeof window !== 'undefined') {
+      const storedUserStr = sessionStorage.getItem('symphosium_user') || localStorage.getItem('symphosium_user');
+      if (storedUserStr) {
+        try {
+          const parsed = JSON.parse(storedUserStr);
+          if (parsed && parsed.id) {
+            studentId = parsed.id;
+          }
+        } catch (e) {}
+      }
+    }
+
     const eventId = 'evt-symposium-2026';
+    const regId = `reg-${studentId}`;
 
     // 1. Sync candidate registration record in Supabase
     await supabase.from('registrations').upsert({
-      id: 'reg-candidate-942',
+      id: regId,
       user_id: studentId,
       event_id: eventId,
-      status: 'SUBMITTED',
+      status: scorecard.totalScore >= 70 ? 'QUALIFIED' : 'SUBMITTED',
       total_score: scorecard.totalScore,
       anti_cheat_flag_count: scorecard.antiCheatFlags,
       updated_at: new Date().toISOString()
@@ -133,7 +147,7 @@ export async function syncScorecardToSupabase(scorecard: DynamicScorecard) {
     await supabase.from('leaderboard').upsert({
       id: `lb-${studentId}`,
       event_id: eventId,
-      registration_id: 'reg-candidate-942',
+      registration_id: regId,
       student_id: studentId,
       round_1_score: scorecard.mcqScore,
       round_2_score: scorecard.debuggingScore,

@@ -14,51 +14,70 @@ export default function RealtimeLeaderboardView() {
 
   const fetchLiveLeaderboard = async () => {
     try {
-      const { data } = await supabase
+      const { data: lbData } = await supabase
         .from('leaderboard')
+        .select('*');
+
+      const { data: dbUsers } = await supabase
+        .from('users')
         .select('*')
-        .order('total_score', { ascending: false })
-        .order('completion_time_seconds', { ascending: true })
-        .order('anti_cheat_flag_count', { ascending: true, nullsFirst: false });
+        .eq('role', 'STUDENT');
 
-      if (data && data.length > 0) {
-        const sorted = sortLeaderboardRecords(data);
-        setLeaderboard(sorted);
-      } else {
-        const { data: studentData } = await supabase.from('students').select('*');
-        const activeScorecard = getDynamicScorecard();
+      const { data: dbRegs } = await supabase
+        .from('registrations')
+        .select('*');
 
-        if (studentData) {
-          const mapped: LeaderboardRecord[] = studentData.map((s: any, idx: number) => {
-            const isCurrentCandidate = s.id === 'candidate-2026-cs-942' || idx === 0;
-            const r1 = isCurrentCandidate ? activeScorecard.mcqScore : 0;
-            const r2 = isCurrentCandidate ? activeScorecard.debuggingScore : 0;
-            const r3 = isCurrentCandidate ? activeScorecard.crashFixScore : 0;
-            const total = r1 + r2 + r3;
+      const activeScorecard = getDynamicScorecard();
 
-            return {
-              id: s.id || `lead-${idx}`,
-              event_id: 'event-2026-main',
-              student_id: s.id,
-              registration_id: s.id,
-              registration: s.registration_number || s.registration || `MIT-2026-${100 + idx}`,
-              name: s.name || 'Candidate',
-              college: s.college || 'Engineering Institute',
-              round_1_score: r1,
-              round_2_score: r2,
-              round_3_score: r3,
+      if (dbUsers && dbUsers.length > 0) {
+        const mapped: any[] = dbUsers.map((u: any, idx: number) => {
+          const reg = dbRegs?.find((r: any) => r.user_id === u.id || r.user_id === u.email || r.id === u.id);
+          const lb = lbData?.find((l: any) => l.student_id === u.id || l.student_id === u.email || l.registration_id === reg?.id);
+
+          const isCurrentCandidate = u.id === 'candidate-2026-cs-942' || u.email === 'alex.chen@mit.edu' || idx === 0;
+
+          const r1 = lb?.round_1_score ?? (isCurrentCandidate ? activeScorecard.mcqScore : 0);
+          const r2 = lb?.round_2_score ?? (isCurrentCandidate ? activeScorecard.debuggingScore : 0);
+          const r3 = lb?.round_3_score ?? (isCurrentCandidate ? activeScorecard.crashFixScore : 0);
+          const total = lb?.total_score ?? (r1 + r2 + r3);
+          const compTime = lb?.completion_time_seconds ?? (isCurrentCandidate ? activeScorecard.completionTimeSeconds : 0);
+          const flags = lb?.anti_cheat_flag_count ?? reg?.anti_cheat_flag_count ?? (isCurrentCandidate ? activeScorecard.antiCheatFlags : 0);
+
+          return {
+            id: lb?.id || `lb-${u.id}`,
+            event_id: 'evt-symposium-2026',
+            student_id: u.id,
+            registration_id: reg?.id || u.id,
+            registration: {
+              id: reg?.id || u.id,
+              user_id: u.id,
+              event_id: 'evt-symposium-2026',
+              status: reg?.status || 'SUBMITTED',
               total_score: total,
-              completion_time_seconds: isCurrentCandidate ? activeScorecard.completionTimeSeconds : 0,
-              anti_cheat_flag_count: isCurrentCandidate ? activeScorecard.antiCheatFlags : 0,
-              rank: idx + 1,
-              disqualified: s.status === 'Disqualified' || false,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            };
-          });
-          const sorted = sortLeaderboardRecords(mapped);
-          setLeaderboard(sorted);
-        }
+              created_at: reg?.created_at || new Date().toISOString(),
+              user: {
+                full_name: u.full_name || 'Candidate',
+                college_name: u.college_name || 'Muthayammal Engineering College'
+              },
+              anti_cheat_flag_count: flags
+            },
+            name: u.full_name || 'Candidate',
+            college: u.college_name || 'Muthayammal Engineering College',
+            round_1_score: r1,
+            round_2_score: r2,
+            round_3_score: r3,
+            total_score: total,
+            completion_time_seconds: compTime,
+            anti_cheat_flag_count: flags,
+            rank: idx + 1,
+            disqualified: flags >= 3 || reg?.status === 'DISQUALIFIED',
+            created_at: lb?.created_at || new Date().toISOString(),
+            updated_at: lb?.updated_at || new Date().toISOString()
+          };
+        });
+
+        const sorted = sortLeaderboardRecords(mapped);
+        setLeaderboard(sorted);
       }
     } catch (err) {
       console.error('Error fetching live leaderboard view:', err);

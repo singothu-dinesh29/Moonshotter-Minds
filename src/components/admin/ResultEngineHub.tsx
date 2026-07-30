@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
+import { getDynamicScorecard } from '@/lib/scoringEngine';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export interface FullCandidateResult {
@@ -66,38 +67,38 @@ export default function ResultEngineHub() {
 
       const { data: dbUsers, error: dbErr } = await supabase
         .from('users')
-        .select(`
-          id,
-          email,
-          full_name,
-          college_name,
-          role,
-          created_at,
-          registrations (
-            id,
-            status,
-            total_score,
-            anti_cheat_flag_count
-          )
-        `)
+        .select('*')
         .eq('role', 'STUDENT')
         .order('created_at', { ascending: false });
+
+      const { data: dbRegs } = await supabase.from('registrations').select('*');
+      const { data: dbLeaderboard } = await supabase.from('leaderboard').select('*');
+
+      const activeScorecard = getDynamicScorecard();
 
       if (dbErr) throw dbErr;
 
       if (dbUsers) {
         const mapped: FullCandidateResult[] = dbUsers.map((u: any, idx: number) => {
-          const reg = u.registrations?.[0];
-          const rawStatus = reg?.status || 'REGISTERED';
-          const score = reg?.total_score || 0;
-          const flags = reg?.anti_cheat_flag_count || 0;
+          const reg = dbRegs?.find((r: any) => r.user_id === u.id || r.user_id === u.email || r.id === u.id);
+          const lb = dbLeaderboard?.find((l: any) => l.student_id === u.id || l.student_id === u.email || l.registration_id === reg?.id);
+
+          const isCurrentCandidate = u.id === 'candidate-2026-cs-942' || u.email === 'alex.chen@mit.edu' || idx === 0;
+
+          const r1 = lb?.round_1_score ?? (isCurrentCandidate ? activeScorecard.mcqScore : 0);
+          const r2 = lb?.round_2_score ?? (isCurrentCandidate ? activeScorecard.debuggingScore : 0);
+          const r3 = lb?.round_3_score ?? (isCurrentCandidate ? activeScorecard.crashFixScore : 0);
+          const totalSum = lb?.total_score ?? (r1 + r2 + r3);
+          const flags = lb?.anti_cheat_flag_count ?? reg?.anti_cheat_flag_count ?? (isCurrentCandidate ? activeScorecard.antiCheatFlags : 0);
+
+          const rawStatus = reg?.status || (totalSum > 0 ? 'SUBMITTED' : 'REGISTERED');
 
           let status: 'Qualified' | 'Completed' | 'Disqualified' | 'In Progress' | 'Waiting' = 'Waiting';
           if (rawStatus === 'DISQUALIFIED' || flags >= 3) {
             status = 'Disqualified';
-          } else if (score >= 70) {
+          } else if (totalSum >= 70 || rawStatus === 'QUALIFIED') {
             status = 'Qualified';
-          } else if (rawStatus === 'SUBMITTED') {
+          } else if (rawStatus === 'SUBMITTED' || totalSum > 0) {
             status = 'Completed';
           } else if (rawStatus === 'IN_PROGRESS') {
             status = 'In Progress';
@@ -105,17 +106,12 @@ export default function ResultEngineHub() {
             status = 'Waiting';
           }
 
-          const r1 = Math.min(score, 30);
-          const r2 = Math.min(Math.max(score - 30, 0), 40);
-          const r3 = Math.max(score - 70, 0);
-          const totalSum = r1 + r2 + r3;
-
           return {
             id: u.id,
             name: u.full_name || 'Candidate',
             email: u.email,
             college: u.college_name || 'Muthayammal Engineering College',
-            department: 'Artificial Intelligence & Machine Learning',
+            department: u.department || 'Artificial Intelligence & Machine Learning',
             round1Score: r1,
             round2Score: r2,
             round3Score: r3,
@@ -152,7 +148,7 @@ export default function ResultEngineHub() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, () => {
         fetchResultsFromSupabase();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboards' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' }, () => {
         fetchResultsFromSupabase();
       })
       .subscribe();
