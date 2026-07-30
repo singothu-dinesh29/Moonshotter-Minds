@@ -979,8 +979,8 @@ export default function QuestionBuilderHub() {
 
             <form onSubmit={handleSave} className="space-y-4 font-sans text-xs">
               
-              {/* TOP CONTROL ROW: TYPE, TITLE, STATUS */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* TOP CONTROL ROW: QUESTION TYPE & STATUS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* 1. Question Type Dropdown */}
                 <div className="space-y-1">
                   <label className="text-slate-300 font-bold flex items-center justify-between">
@@ -998,20 +998,7 @@ export default function QuestionBuilderHub() {
                   </select>
                 </div>
 
-                {/* 2. Question Title (Optional - Auto-filled if empty) */}
-                <div className="space-y-1">
-                  <label className="text-slate-300 font-bold flex items-center justify-between">
-                    <span>Question Title</span>
-                    <span className="text-[10px] text-slate-400 font-mono font-normal">(Optional - auto-generated if left blank)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Enter title or leave blank to auto-generate..."
-                    value={formData.title || ''}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 focus:outline-none"
-                  />
-                </div>
+
 
                 {/* 3. Status Dropdown */}
                 <div className="space-y-1">
