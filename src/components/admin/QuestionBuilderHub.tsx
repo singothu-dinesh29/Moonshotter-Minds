@@ -69,6 +69,7 @@ export interface QuestionRecord {
   marks: number;
   negativeMarks: number;
   timeLimitSec: number;
+  memoryLimitMb?: number;
   expectedOutput: string;
   referenceSolution: string;
   buggyCode?: string;
@@ -241,6 +242,7 @@ export default function QuestionBuilderHub() {
           marks: q.points || q.marks || 10,
           negativeMarks: q.negative_points || q.negativeMarks || 0,
           timeLimitSec: q.time_limit_sec || q.timeLimitSec || 60,
+          memoryLimitMb: q.memory_limit_mb || q.memoryLimitMb || 256,
           expectedOutput: q.expected_output || q.expectedOutput || '',
           referenceSolution: q.reference_solution || q.referenceSolution || '',
           buggyCode: q.buggy_code || q.buggyCode || '',
@@ -528,6 +530,8 @@ export default function QuestionBuilderHub() {
         negativeMarks: newRecord.negativeMarks,
         time_limit_sec: newRecord.timeLimitSec,
         timeLimitSec: newRecord.timeLimitSec,
+        memory_limit_mb: newRecord.memoryLimitMb || 256,
+        memoryLimitMb: newRecord.memoryLimitMb || 256,
         expected_output: newRecord.expectedOutput,
         expectedOutput: newRecord.expectedOutput,
         reference_solution: newRecord.referenceSolution,
@@ -1039,11 +1043,11 @@ export default function QuestionBuilderHub() {
                 <div className="space-y-1">
                   <label className="text-slate-400 font-semibold text-[11px]">Difficulty</label>
                   <select
-                    value={formData.difficulty || 'Medium'}
+                    value={formData.difficulty || (formData.type === 'Crash & Fix' ? 'Hard' : 'Medium')}
                     onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as any })}
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
                   >
-                    <option value="Easy">Easy</option>
+                    {formData.type !== 'Crash & Fix' && <option value="Easy">Easy</option>}
                     <option value="Medium">Medium</option>
                     <option value="Hard">Hard</option>
                   </select>
@@ -1053,7 +1057,7 @@ export default function QuestionBuilderHub() {
                   <label className="text-slate-400 font-semibold text-[11px]">Marks / Points</label>
                   <input
                     type="number"
-                    value={formData.marks || 10}
+                    value={formData.marks || (formData.type === 'Crash & Fix' ? 50 : 10)}
                     onChange={(e) => setFormData({ ...formData, marks: parseInt(e.target.value) || 0 })}
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
                   />
@@ -1065,7 +1069,7 @@ export default function QuestionBuilderHub() {
                   </label>
                   <input
                     type="number"
-                    value={formData.type === 'MCQ' ? (formData.negativeMarks ?? 2) : (formData.timeLimitSec ?? 60)}
+                    value={formData.type === 'MCQ' ? (formData.negativeMarks ?? 2) : (formData.timeLimitSec ?? 120)}
                     onChange={(e) => {
                       const val = parseInt(e.target.value) || 0;
                       if (formData.type === 'MCQ') {
@@ -1077,6 +1081,18 @@ export default function QuestionBuilderHub() {
                     className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-amber-300 font-mono"
                   />
                 </div>
+
+                {formData.type === 'Crash & Fix' && (
+                  <div className="space-y-1">
+                    <label className="text-slate-400 font-semibold text-[11px]">Memory Limit (MB)</label>
+                    <input
+                      type="number"
+                      value={formData.memoryLimitMb || 256}
+                      onChange={(e) => setFormData({ ...formData, memoryLimitMb: parseInt(e.target.value) || 256 })}
+                      className="w-full bg-slate-900 border border-purple-500/30 rounded-lg p-2 text-purple-300 font-mono"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* VALIDATION ERROR BANNER */}
@@ -1421,46 +1437,171 @@ export default function QuestionBuilderHub() {
                 </div>
               )}
 
-              {/* 3. CRASH & FIX SPECIFIC FIELDS */}
+              {/* 3. ENHANCED CRASH & FIX AUTHORING FIELDS */}
               {formData.type === 'Crash & Fix' && (
                 <div className="space-y-4 pt-1">
-                  <div className="space-y-1">
-                    <label className="text-slate-300 font-bold text-purple-400">Crash Scenario & Exception Type</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. RangeError: Maximum call stack size exceeded"
-                      value={formData.category || ''}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full bg-slate-950 border border-purple-500/30 rounded-xl p-3 text-purple-300 font-mono focus:border-purple-400 focus:outline-none"
-                    />
+                  
+                  {/* PROBLEM STATEMENT & CRASH EXCEPTION TYPE */}
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-slate-300 font-bold flex items-center justify-between">
+                        <span>Problem Statement & Crash Scenario</span>
+                        <span className="text-[10px] text-slate-500 font-mono">* Required</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        placeholder="Describe the condition triggering the runtime crash, infinite recursion, memory leak, or broken algorithm..."
+                        value={formData.description || ''}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono focus:border-purple-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1 bg-slate-950/60 p-3 rounded-xl border border-purple-500/30">
+                      <label className="text-slate-300 font-bold flex items-center gap-1 text-[11px]">
+                        <AlertOctagon className="h-3.5 w-3.5 text-purple-400" /> Crash Exception Type / Error Target
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. RangeError: Maximum call stack size exceeded, NullPointerException, Segmentation Fault"
+                        value={formData.category || ''}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-purple-300 focus:border-purple-500 focus:outline-none font-mono"
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-slate-300 font-bold">Problem Scenario Description</label>
-                    <textarea
-                      rows={3}
-                      required
-                      placeholder="Describe the condition triggering the runtime crash..."
-                      value={formData.description || ''}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono focus:border-purple-500 focus:outline-none"
-                    />
+                  {/* CRASHING CODE SECTION WITH MONACO PLAYGROUND */}
+                  <div className="space-y-2 bg-slate-950/70 p-4 rounded-2xl border border-purple-500/30">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-purple-400 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Terminal className="h-4 w-4" /> Crashing Code (Monaco Editor for Major Logical Flaw)
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">Monaco Code Editor Active</span>
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Paste code containing larger logical bugs (incorrect recursion, broken algorithm, wrong data structure, memory issue, infinite loop, or incorrect return). Students will solve by editing this code.
+                    </p>
+
+                    <div className="rounded-xl overflow-hidden border border-slate-800">
+                      <MonacoPlayground
+                        language={(formData.language || 'python').toLowerCase() === 'c++' ? 'cpp' : (formData.language || 'python').toLowerCase()}
+                        initialCode={formData.buggyCode || '// Write or paste crashing code starter here...\ndef maxDepth(root):\n    # Crashing missing base case causes infinite recursion stack overflow!\n    return max(maxDepth(root.left), maxDepth(root.right)) + 1'}
+                        onChange={(val) => setFormData({ ...formData, buggyCode: val })}
+                        timeLimitSec={formData.timeLimitSec || 180}
+                        onRunComplete={(result) => console.log('Admin Crash Test:', result)}
+                      />
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-slate-300 font-bold text-purple-400 flex items-center justify-between">
-                      <span>Crashing Code Model & Required Patch</span>
-                      <span className="text-[10px] font-mono font-bold text-emerald-400">+ if (!node) return 0;</span>
-                    </label>
+                  {/* REFERENCE SOLUTION (EDITABLE REFERENCE CODE MODEL) */}
+                  <div className="space-y-2 bg-slate-950/70 p-4 rounded-2xl border border-emerald-500/30">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-400 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Code2 className="h-4 w-4" /> Reference Solution (Correct Fixed Code Model)
+                      </span>
+                      <span className="text-[10px] text-emerald-400 font-mono font-bold">+ if not root: return 0</span>
+                    </div>
+
                     <textarea
-                      rows={5}
+                      rows={6}
                       required
-                      placeholder="def maxDepth(root):\n    # Crashing missing base case\n    return max(maxDepth(root.left), maxDepth(root.right)) + 1"
+                      placeholder="Paste correct reference fixed code solution model..."
                       value={formData.referenceSolution || ''}
                       onChange={(e) => setFormData({ ...formData, referenceSolution: e.target.value })}
-                      className="w-full bg-slate-950 border border-purple-500/30 rounded-xl p-3 text-purple-300 font-mono focus:border-purple-400 focus:outline-none"
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-300 font-mono focus:border-emerald-500 focus:outline-none"
                     />
                   </div>
+
+                  {/* VISIBLE & HIDDEN TEST CASES SECTION */}
+                  <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-purple-400 text-xs uppercase tracking-wider block">Test Cases (Visible & Hidden)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Define test inputs and expected outputs</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddTestCase}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-all shadow"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add Test Case
+                      </button>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {getTestCases().map((tc, idx) => {
+                        const tcList = getTestCases();
+                        return (
+                          <div key={tc.id || idx} className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                              <span className="font-mono text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                Test Case #{idx + 1}
+                                {tc.isHidden ? (
+                                  <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px]">
+                                    Hidden Test Case
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px]">
+                                    Visible Test Case
+                                  </span>
+                                )}
+                              </span>
+
+                              <div className="flex items-center gap-3">
+                                <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer font-mono">
+                                  <input
+                                    type="checkbox"
+                                    checked={tc.isHidden}
+                                    onChange={(e) => handleTestCaseChange(idx, 'isHidden', e.target.checked)}
+                                    className="accent-purple-500 h-3.5 w-3.5 cursor-pointer rounded"
+                                  />
+                                  <span className="text-[11px]">{tc.isHidden ? 'Hidden' : 'Visible'}</span>
+                                </label>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTestCase(idx)}
+                                  disabled={tcList.length <= 1}
+                                  title="Delete Test Case"
+                                  className="p-1 text-slate-500 hover:text-rose-400 disabled:opacity-30 disabled:cursor-not-allowed rounded hover:bg-rose-500/10 transition-all"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-xs">
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Input / STDIN</label>
+                                <textarea
+                                  rows={2}
+                                  placeholder="e.g. root = [3, 9, 20, null, null, 15, 7]"
+                                  value={tc.input}
+                                  onChange={(e) => handleTestCaseChange(idx, 'input', e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-white text-xs focus:border-purple-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] text-slate-400 block mb-1">Expected Output / STDOUT</label>
+                                <textarea
+                                  rows={2}
+                                  placeholder="e.g. 3"
+                                  value={tc.expectedOutput}
+                                  onChange={(e) => handleTestCaseChange(idx, 'expectedOutput', e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-emerald-400 text-xs focus:border-emerald-500 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                 </div>
               )}
 
