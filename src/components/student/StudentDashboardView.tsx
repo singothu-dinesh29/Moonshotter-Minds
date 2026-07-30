@@ -211,9 +211,56 @@ export default function StudentDashboardView() {
     };
   }, []);
 
+  // Dynamic Student Profile loaded from Supabase using authenticated user's ID
+  const [studentProfile, setStudentProfile] = useState<{
+    full_name: string;
+    college_name: string;
+    department: string;
+    registration_no: string;
+  } | null>(null);
+
+  useEffect(() => {
+    async function fetchStudentProfileFromSupabase() {
+      const activeId = user?.id || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('symphosium_user') || '{}')?.id : null);
+      const activeEmail = user?.email || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('symphosium_user') || '{}')?.email : null);
+
+      if (activeId || activeEmail) {
+        try {
+          const query = supabase.from('users').select('*');
+          const { data } = activeId 
+            ? await query.eq('id', activeId).maybeSingle()
+            : await query.eq('email', activeEmail).maybeSingle();
+
+          if (data) {
+            setStudentProfile({
+              full_name: data.full_name || user?.full_name || '',
+              college_name: data.college_name || user?.college_name || 'Muthayammal Engineering College',
+              department: data.department || 'Computer Science & Engineering',
+              registration_no: data.registration_no || data.id || '2026-CS-942'
+            });
+            return;
+          }
+        } catch (err) {
+          console.error('Error fetching student profile from Supabase:', err);
+        }
+      }
+
+      if (user?.full_name) {
+        setStudentProfile({
+          full_name: user.full_name,
+          college_name: user.college_name || 'Muthayammal Engineering College',
+          department: 'Computer Science & Engineering',
+          registration_no: user.id || '2026-CS-942'
+        });
+      }
+    }
+
+    fetchStudentProfileFromSupabase();
+  }, [user]);
+
   // Lobby & Exam Session State
-  const [configuredDuration, setConfiguredDuration] = useState<number>(45 * 60);
-  const [lobbyCountdown, setLobbyCountdown] = useState<number>(45 * 60);
+  const [configuredDuration, setConfiguredDuration] = useState<number>(60 * 60);
+  const [lobbyCountdown, setLobbyCountdown] = useState<number>(60 * 60);
   const [isExamStarted, setIsExamStarted] = useState<boolean>(false);
   const [showStartConfirmationModal, setShowStartConfirmationModal] = useState<boolean>(false);
   const [pendingArenaHref, setPendingArenaHref] = useState<string>('/arena/evt-symposium-2026');
@@ -221,27 +268,36 @@ export default function StudentDashboardView() {
   useEffect(() => {
     async function loadTimerConfig() {
       const durationSec = await getConfiguredExamDurationSeconds();
-      setConfiguredDuration(durationSec);
+      const targetDuration = durationSec > 0 ? durationSec : 3600;
+      setConfiguredDuration(targetDuration);
 
-      const activeSession = getActiveExamSession('candidate-2026-cs-942');
-      if (activeSession && activeSession.isStarted) {
-        setIsExamStarted(true);
-        const rem = getRemainingExamSeconds(activeSession);
-        setLobbyCountdown(rem);
-      } else {
-        setIsExamStarted(false);
-        setLobbyCountdown(durationSec);
+      const activeStudentId = user?.id || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('symphosium_user') || '{}')?.id : null);
+      if (activeStudentId) {
+        const activeSession = getActiveExamSession(activeStudentId);
+        if (activeSession && activeSession.isStarted) {
+          setIsExamStarted(true);
+          const rem = getRemainingExamSeconds(activeSession);
+          setLobbyCountdown(rem);
+          return;
+        }
       }
+
+      // In Lobby: Display static configured duration (01:00:00) without counting down!
+      setIsExamStarted(false);
+      setLobbyCountdown(targetDuration);
     }
     loadTimerConfig();
-  }, []);
+  }, [user]);
 
-  // ONLY run countdown interval IF the student has explicitly started the exam
+  // ONLY run countdown interval AFTER student clicks "Enter Exam Arena" and starts exam
   useEffect(() => {
-    if (!isExamStarted) return; // Completely PAUSED while student is in the lobby
+    if (!isExamStarted) return; // Completely static & paused while student is in the lobby
+
+    const activeStudentId = user?.id || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('symphosium_user') || '{}')?.id : null);
+    if (!activeStudentId) return;
 
     const timer = setInterval(() => {
-      const activeSession = getActiveExamSession('candidate-2026-cs-942');
+      const activeSession = getActiveExamSession(activeStudentId);
       if (activeSession) {
         const rem = getRemainingExamSeconds(activeSession);
         setLobbyCountdown(rem);
@@ -252,21 +308,25 @@ export default function StudentDashboardView() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isExamStarted]);
+  }, [isExamStarted, user]);
 
   const handleStartExamClick = (href: string) => {
-    const activeSession = getActiveExamSession('candidate-2026-cs-942');
-    if (activeSession && activeSession.isStarted) {
-      router.push(href);
-    } else {
-      setPendingArenaHref(href);
-      setShowStartConfirmationModal(true);
+    const activeStudentId = user?.id || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('symphosium_user') || '{}')?.id : null);
+    if (activeStudentId) {
+      const activeSession = getActiveExamSession(activeStudentId);
+      if (activeSession && activeSession.isStarted) {
+        router.push(href);
+        return;
+      }
     }
+    setPendingArenaHref(href);
+    setShowStartConfirmationModal(true);
   };
 
   const handleConfirmStartExam = async () => {
     setShowStartConfirmationModal(false);
-    await startExamSession(configuredDuration, 'candidate-2026-cs-942');
+    const activeStudentId = user?.id || (typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('symphosium_user') || '{}')?.id : null) || 'candidate-student';
+    await startExamSession(configuredDuration, activeStudentId);
     setIsExamStarted(true);
     router.push(pendingArenaHref || '/arena/evt-symposium-2026');
   };
@@ -300,15 +360,22 @@ export default function StudentDashboardView() {
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-white">{user?.full_name || 'Registered Candidate'}</h1>
+              <h1 className="text-2xl font-black text-white">
+                {studentProfile?.full_name || user?.full_name || 'Student Candidate'}
+              </h1>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-mono font-semibold">
                 VERIFIED CANDIDATE
               </span>
             </div>
             <p className="text-xs text-slate-400 flex items-center gap-3">
-              <span className="flex items-center gap-1"><School className="h-3.5 w-3.5 text-indigo-400" /> {user?.college_name || 'Muthayammal Engineering College'}</span>
+              <span className="flex items-center gap-1">
+                <School className="h-3.5 w-3.5 text-indigo-400" />
+                {studentProfile?.college_name || user?.college_name || 'Muthayammal Engineering College'}
+              </span>
               <span>•</span>
-              <span className="font-mono text-slate-300">ID: {user?.id ? (user.id.startsWith('u-') ? user.id.replace('u-', '2026-CS-') : user.id.substring(0, 12).toUpperCase()) : '2026-CS-942'}</span>
+              <span className="font-mono text-slate-300">
+                ID: {studentProfile?.registration_no || (user?.id ? (user.id.startsWith('u-') ? user.id.replace('u-', '2026-CS-') : user.id.substring(0, 12).toUpperCase()) : '2026-CS-942')}
+              </span>
             </p>
           </div>
         </div>

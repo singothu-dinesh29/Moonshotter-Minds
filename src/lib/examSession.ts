@@ -96,6 +96,6 @@ export async function getConfiguredExamDurationSeconds(): Promise<number> {
     }
   } catch (e) {}
 
-  // Fallback to 45 minutes (2700 seconds) if no custom admin rounds configured
-  return 45 * 60;
+  // Fallback to 60 minutes (3600 seconds) if no custom admin rounds configured
+  return 60 * 60;
 }
