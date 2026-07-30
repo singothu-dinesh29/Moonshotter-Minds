@@ -61,7 +61,7 @@ export default function RoundsSection() {
         'Strict 15-Minute Countdown Timer',
         'Question Navigation Palette with Review Flags',
         '+10 Points / -2 Negative Marking',
-        'Single Direction Exam (Previous Locked)'
+        'Full Bidirectional Question Navigation'
       ],
       score: '30 PTS',
       time: '15 MINS',

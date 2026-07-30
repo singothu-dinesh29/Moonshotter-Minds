@@ -156,7 +156,20 @@ export default function McqExamModule() {
 
   const handleSelectOption = (questionId: string, optionId: string) => {
     if (isSubmitted) return;
-    setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
+    setAnswers((prev) => {
+      if (prev[questionId] === optionId) {
+        const next = { ...prev };
+        delete next[questionId];
+        return next;
+      }
+      return { ...prev, [questionId]: optionId };
+    });
+  };
+
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
+    }
   };
 
   const handleToggleReview = (questionId: string) => {
@@ -313,16 +326,16 @@ export default function McqExamModule() {
               </div>
             </div>
 
-            {/* Bottom Actions: Previous Disabled, Mark for Review, Next */}
+            {/* Bottom Actions: Previous, Mark for Review, Next */}
             <div className="flex items-center justify-between border-t border-slate-800 pt-6">
               
-              {/* Previous Disabled Notice */}
+              {/* Previous Button: Enabled when currentIndex > 0 */}
               <button
-                disabled
-                className="px-4 py-2.5 rounded-lg bg-slate-950 text-slate-600 border border-slate-800 text-xs font-semibold cursor-not-allowed opacity-50"
-                title="Single Direction Exam: Previous Button Disabled"
+                onClick={handlePrevious}
+                disabled={currentIndex === 0 || isSubmitted}
+                className="px-4 py-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ← Previous (Disabled)
+                ← Previous
               </button>
 
               <div className="flex items-center gap-3">
@@ -340,8 +353,8 @@ export default function McqExamModule() {
 
                 <button
                   onClick={handleNext}
-                  disabled={currentIndex === questions.length - 1}
-                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow disabled:opacity-40"
+                  disabled={currentIndex === questions.length - 1 || isSubmitted}
+                  className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Next Question <ArrowRight className="h-4 w-4" />
                 </button>
@@ -396,6 +409,7 @@ export default function McqExamModule() {
                   <button
                     key={q.id}
                     onClick={() => setCurrentIndex(idx)}
+                    disabled={isSubmitted}
                     className={`h-10 rounded-lg border text-xs font-mono transition-all flex items-center justify-center ${btnStyle}`}
                   >
                     {idx + 1}
@@ -412,7 +426,7 @@ export default function McqExamModule() {
             </div>
             <div className="flex justify-between">
               <span>Navigation:</span>
-              <span className="text-amber-400">Previous Locked</span>
+              <span className="text-emerald-400">Bidirectional</span>
             </div>
           </div>
         </div>
