@@ -8,6 +8,7 @@ export interface MCQItem {
   options: {
     id: string;
     text: string;
+    isCorrect?: boolean;
   }[];
 }
 
