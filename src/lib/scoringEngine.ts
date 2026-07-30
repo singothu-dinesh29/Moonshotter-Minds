@@ -140,9 +140,44 @@ export async function syncScorecardToSupabase(scorecard: DynamicScorecard) {
       round_3_score: scorecard.crashFixScore,
       total_score: scorecard.totalScore,
       completion_time_seconds: scorecard.completionTimeSeconds,
+      anti_cheat_flag_count: scorecard.antiCheatFlags,
       updated_at: new Date().toISOString()
     });
   } catch (err) {
     console.error('Error syncing dynamic scorecard to Supabase:', err);
   }
+}
+
+/**
+ * Ranks students strictly by:
+ * 1. Final Score (total_score DESC)
+ * 2. Completion Time (completion_time_seconds ASC)
+ * 3. Least Malpractice Flags (anti_cheat_flag_count ASC)
+ */
+export function sortLeaderboardRecords<T extends Record<string, any>>(records: T[]): T[] {
+  const sorted = [...records].sort((a, b) => {
+    // 1. Final Score (descending)
+    const scoreA = Number(a.total_score ?? a.totalScore ?? 0);
+    const scoreB = Number(b.total_score ?? b.totalScore ?? 0);
+    if (scoreB !== scoreA) {
+      return scoreB - scoreA;
+    }
+
+    // 2. Completion Time (ascending)
+    const timeA = Number(a.completion_time_seconds ?? a.completionTimeSeconds ?? Infinity);
+    const timeB = Number(b.completion_time_seconds ?? b.completionTimeSeconds ?? Infinity);
+    if (timeA !== timeB) {
+      return timeA - timeB;
+    }
+
+    // 3. Least Malpractice Flags (ascending)
+    const flagsA = Number(a.anti_cheat_flag_count ?? a.antiCheatFlags ?? a.registration?.anti_cheat_flag_count ?? 0);
+    const flagsB = Number(b.anti_cheat_flag_count ?? b.antiCheatFlags ?? b.registration?.anti_cheat_flag_count ?? 0);
+    return flagsA - flagsB;
+  });
+
+  return sorted.map((item, idx) => ({
+    ...item,
+    rank: idx + 1
+  }));
 }

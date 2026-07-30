@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LeaderboardRecord, supabase } from '@/lib/supabase';
-import { getDynamicScorecard } from '@/lib/scoringEngine';
+import { getDynamicScorecard, sortLeaderboardRecords } from '@/lib/scoringEngine';
 import { Trophy, Medal, Award, Clock, ShieldCheck, Search, RefreshCw, Zap, Sparkles, Activity } from 'lucide-react';
 import Link from 'next/link';
 
@@ -17,10 +17,13 @@ export default function RealtimeLeaderboardView() {
       const { data } = await supabase
         .from('leaderboard')
         .select('*')
-        .order('total_score', { ascending: false });
+        .order('total_score', { ascending: false })
+        .order('completion_time_seconds', { ascending: true })
+        .order('anti_cheat_flag_count', { ascending: true, nullsFirst: false });
 
       if (data && data.length > 0) {
-        setLeaderboard(data);
+        const sorted = sortLeaderboardRecords(data);
+        setLeaderboard(sorted);
       } else {
         const { data: studentData } = await supabase.from('students').select('*');
         const activeScorecard = getDynamicScorecard();
@@ -46,13 +49,15 @@ export default function RealtimeLeaderboardView() {
               round_3_score: r3,
               total_score: total,
               completion_time_seconds: isCurrentCandidate ? activeScorecard.completionTimeSeconds : 0,
+              anti_cheat_flag_count: isCurrentCandidate ? activeScorecard.antiCheatFlags : 0,
               rank: idx + 1,
               disqualified: s.status === 'Disqualified' || false,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             };
           });
-          setLeaderboard(mapped);
+          const sorted = sortLeaderboardRecords(mapped);
+          setLeaderboard(sorted);
         }
       }
     } catch (err) {
