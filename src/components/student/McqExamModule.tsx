@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getRandomizedQuestions, MCQItem } from '@/lib/mcqBank';
+import { MCQItem } from '@/lib/mcqBank';
 import { formatSeconds } from '@/lib/utils';
 import { supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
 import { 

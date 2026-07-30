@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { MOCK_DEBUG_QUESTION, supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
+import { supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { 

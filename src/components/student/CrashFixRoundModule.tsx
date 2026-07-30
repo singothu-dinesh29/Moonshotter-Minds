@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { CRASH_QUESTIONS_2, CrashQuestionItem } from '@/lib/crashBank';
+import { CrashQuestionItem } from '@/lib/crashBank';
 import { supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
@@ -131,10 +131,7 @@ export default function CrashFixRoundModule() {
   }, []);
 
   // Results per question
-  const [resultsMap, setResultsMap] = useState<Record<string, EvaluationResult | null>>({
-    [CRASH_QUESTIONS_2[0].id]: null,
-    [CRASH_QUESTIONS_2[1].id]: null,
-  });
+  const [resultsMap, setResultsMap] = useState<Record<string, EvaluationResult | null>>({});
 
   // Auto Save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<string>('Saved');
