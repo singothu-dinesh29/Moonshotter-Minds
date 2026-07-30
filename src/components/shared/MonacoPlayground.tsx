@@ -46,13 +46,28 @@ export default function MonacoPlayground({
   const containerRef = useRef<HTMLDivElement>(null);
   
   // Language & Theme State
-  const [language, setLanguage] = useState<SupportedLanguage>(
-    (initialLanguage && ['c', 'cpp', 'java', 'python', 'javascript'].includes(initialLanguage))
-      ? (initialLanguage as SupportedLanguage)
-      : 'javascript'
-  );
+  const parseLang = (l?: string): SupportedLanguage => {
+    if (!l) return 'javascript';
+    const norm = l.trim().toLowerCase();
+    if (norm === 'c') return 'c';
+    if (norm === 'c++' || norm === 'cpp') return 'cpp';
+    if (norm === 'java') return 'java';
+    if (norm === 'python' || norm === 'py') return 'python';
+    if (norm === 'javascript' || norm === 'js') return 'javascript';
+    return 'javascript';
+  };
+
+  const [language, setLanguage] = useState<SupportedLanguage>(parseLang(initialLanguage));
   const [theme, setTheme] = useState<'vs-dark' | 'light'>('vs-dark');
-  const [code, setCode] = useState<string>(initialCode || STARTER_TEMPLATES.javascript);
+  const [code, setCode] = useState<string>(initialCode || STARTER_TEMPLATES[parseLang(initialLanguage)]);
+
+  useEffect(() => {
+    if (initialLanguage) {
+      const parsed = parseLang(initialLanguage);
+      setLanguage(parsed);
+      if (initialCode) setCode(initialCode);
+    }
+  }, [initialLanguage, initialCode]);
   
   // Custom Stdin Input & Stdout Output Panels
   const [customInput, setCustomInput] = useState<string>('Test Input Data 100');

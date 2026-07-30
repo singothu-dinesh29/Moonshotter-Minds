@@ -3,7 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { CrashQuestionItem } from '@/lib/crashBank';
-import { supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
+import { 
+  supabase, 
+  createExamSnapshot, 
+  fetchExamSnapshot, 
+  saveStudentCodeSubmission, 
+  normalizeMonacoLanguage, 
+  getLanguageFileName 
+} from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { 
@@ -58,6 +65,7 @@ export default function CrashFixRoundModule() {
             solutionCode: q.reference_solution || q.referenceSolution || '',
             expectedPatch: '+ if (!node) return 0;',
             points: q.points || q.marks || 50,
+            language: q.language || 'python',
             testCases: [
               { input: 'maxDepth(node)', expected_output: '0' }
             ]
@@ -182,10 +190,21 @@ export default function CrashFixRoundModule() {
     setCodeMap((prev) => ({ ...prev, [currentQ.id]: val }));
   };
 
-  const handleValidatePatch = () => {
+  const handleValidatePatch = async () => {
     const activeCode = codeMap[currentQ.id];
     const res = evaluateCodeSubmission(activeCode, currentQ.testCases, currentQ.points);
     setResultsMap((prev) => ({ ...prev, [currentQ.id]: res }));
+
+    await saveStudentCodeSubmission({
+      studentId: 'candidate-2026-cs-942',
+      questionId: currentQ.id,
+      round: 'ROUND_03_CRASH_FIX',
+      code: activeCode,
+      language: currentQ.language || 'python',
+      compilationStatus: res.status === 'PASSED' ? 'PASSED' : 'FAILED',
+      executionResult: res,
+      submittedAt: new Date().toISOString()
+    });
   };
 
   const handleResetCode = () => {
@@ -195,14 +214,42 @@ export default function CrashFixRoundModule() {
     }
   };
 
-  const handleAutoSubmit = () => {
+  const handleAutoSubmit = async () => {
     setIsExamActive(false);
+    for (const q of crashQuestions) {
+      const activeCode = codeMap[q.id] || q.initialCode;
+      const res = evaluateCodeSubmission(activeCode, q.testCases, q.points);
+      await saveStudentCodeSubmission({
+        studentId: 'candidate-2026-cs-942',
+        questionId: q.id,
+        round: 'ROUND_03_CRASH_FIX',
+        code: activeCode,
+        language: q.language || 'python',
+        compilationStatus: res.status === 'PASSED' ? 'PASSED' : 'FAILED',
+        executionResult: res,
+        submittedAt: new Date().toISOString()
+      });
+    }
     alert('Time expired! Your Crash & Fix patches have been auto-submitted to Supabase PostgreSQL.');
   };
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     if (confirm('Are you ready to submit your Crash & Fix patches for both questions?')) {
       setIsSubmitting(true);
+      for (const q of crashQuestions) {
+        const activeCode = codeMap[q.id] || q.initialCode;
+        const res = evaluateCodeSubmission(activeCode, q.testCases, q.points);
+        await saveStudentCodeSubmission({
+          studentId: 'candidate-2026-cs-942',
+          questionId: q.id,
+          round: 'ROUND_03_CRASH_FIX',
+          code: activeCode,
+          language: q.language || 'python',
+          compilationStatus: res.status === 'PASSED' ? 'PASSED' : 'FAILED',
+          executionResult: res,
+          submittedAt: new Date().toISOString()
+        });
+      }
       setTimeout(() => {
         setIsSubmitting(false);
         router.push('/summary');
@@ -348,7 +395,10 @@ export default function CrashFixRoundModule() {
           <div className="bg-slate-950 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileCode className="h-4 w-4 text-purple-400" />
-              <span className="text-xs font-mono text-slate-300">crash_patch.js (JavaScript)</span>
+              <span className="text-xs font-mono text-slate-300 font-bold">{getLanguageFileName(currentQ?.language)}</span>
+              <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                Language Locked by Admin
+              </span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -364,7 +414,7 @@ export default function CrashFixRoundModule() {
                 onClick={handleValidatePatch}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-all shadow"
               >
-                <Play className="h-3.5 w-3.5 fill-current" /> Validate Patch
+                <Play className="h-3.5 w-3.5 fill-current" /> Run & Validate Patch ({ (currentQ?.language || 'python').toUpperCase() })
               </button>
             </div>
           </div>
@@ -373,7 +423,8 @@ export default function CrashFixRoundModule() {
           <div className="flex-1 relative">
             <Editor
               height="100%"
-              defaultLanguage="javascript"
+              defaultLanguage={normalizeMonacoLanguage(currentQ?.language)}
+              language={normalizeMonacoLanguage(currentQ?.language)}
               theme="vs-dark"
               value={codeMap[currentQ.id]}
               onChange={(val) => handleCodeChange(val || '')}

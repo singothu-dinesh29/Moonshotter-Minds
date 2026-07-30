@@ -386,3 +386,71 @@ export async function fetchExamSnapshot(studentId: string, round: string) {
 
   return null;
 }
+
+export function normalizeMonacoLanguage(lang?: string): string {
+  if (!lang) return 'javascript';
+  const l = lang.trim().toLowerCase();
+  if (l === 'c') return 'c';
+  if (l === 'c++' || l === 'cpp') return 'cpp';
+  if (l === 'java') return 'java';
+  if (l === 'python' || l === 'py') return 'python';
+  if (l === 'javascript' || l === 'js') return 'javascript';
+  if (l === 'sql') return 'sql';
+  if (l === 'typescript' || l === 'ts') return 'typescript';
+  return 'javascript';
+}
+
+export function getLanguageFileName(lang?: string): string {
+  const monacoLang = normalizeMonacoLanguage(lang);
+  switch (monacoLang) {
+    case 'c': return 'main.c (C)';
+    case 'cpp': return 'main.cpp (C++)';
+    case 'java': return 'Solution.java (Java)';
+    case 'python': return 'main.py (Python)';
+    case 'javascript': return 'solution.js (JavaScript)';
+    case 'sql': return 'query.sql (SQL)';
+    case 'typescript': return 'solution.ts (TypeScript)';
+    default: return 'solution.js (JavaScript)';
+  }
+}
+
+export interface CodeSubmissionRecord {
+  id?: string;
+  studentId: string;
+  questionId: string;
+  round: string;
+  code: string;
+  language: string;
+  compilationStatus: 'PASSED' | 'FAILED' | 'COMPILATION_ERROR';
+  executionResult: any;
+  submittedAt?: string;
+}
+
+export async function saveStudentCodeSubmission(payload: CodeSubmissionRecord) {
+  const submissionRecord = {
+    id: payload.id || `sub-${Date.now()}-${payload.studentId}-${payload.questionId}`,
+    student_id: payload.studentId,
+    question_id: payload.questionId,
+    round: payload.round,
+    code: payload.code,
+    language: payload.language,
+    compilation_status: payload.compilationStatus,
+    compilationStatus: payload.compilationStatus,
+    execution_result: payload.executionResult,
+    executionResult: payload.executionResult,
+    submission_time: payload.submittedAt || new Date().toISOString(),
+    created_at: payload.submittedAt || new Date().toISOString()
+  };
+
+  try {
+    await supabase.from('submissions').upsert(submissionRecord);
+  } catch (err) {
+    console.error('Error saving student code submission to Supabase:', err);
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`submission_${payload.questionId}`, JSON.stringify(submissionRecord));
+  }
+
+  return submissionRecord;
+}

@@ -8,6 +8,7 @@ export interface CrashQuestionItem {
   solutionCode: string;
   expectedPatch: string;
   points: number;
+  language?: string;
   testCases: {
     input: string;
     expected_output: string;

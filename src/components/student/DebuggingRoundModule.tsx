@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { supabase, createExamSnapshot, fetchExamSnapshot } from '@/lib/supabase';
+import { 
+  supabase, 
+  createExamSnapshot, 
+  fetchExamSnapshot, 
+  saveStudentCodeSubmission, 
+  normalizeMonacoLanguage, 
+  getLanguageFileName 
+} from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { 
@@ -203,9 +210,20 @@ export default function DebuggingRoundModule() {
     return () => clearInterval(timer);
   }, [isExamActive, secondsRemaining]);
 
-  const handleRunValidation = () => {
+  const handleRunValidation = async () => {
     const result = evaluateCodeSubmission(code, questionSpec.coding.test_cases, questionSpec.points);
     setEvaluationResult(result);
+
+    await saveStudentCodeSubmission({
+      studentId: 'candidate-2026-cs-942',
+      questionId: questionSpec.id,
+      round: 'ROUND_02_DEBUGGING',
+      code,
+      language: questionSpec.coding.language || language,
+      compilationStatus: result.status === 'PASSED' ? 'PASSED' : 'FAILED',
+      executionResult: result,
+      submittedAt: new Date().toISOString()
+    });
   };
 
   const handleResetCode = () => {
@@ -215,18 +233,42 @@ export default function DebuggingRoundModule() {
     }
   };
 
-  const handleAutoSubmit = () => {
+  const handleAutoSubmit = async () => {
     setIsExamActive(false);
     const result = evaluateCodeSubmission(code, questionSpec.coding.test_cases, questionSpec.points);
     setEvaluationResult(result);
+
+    await saveStudentCodeSubmission({
+      studentId: 'candidate-2026-cs-942',
+      questionId: questionSpec.id,
+      round: 'ROUND_02_DEBUGGING',
+      code,
+      language: questionSpec.coding.language || language,
+      compilationStatus: result.status === 'PASSED' ? 'PASSED' : 'FAILED',
+      executionResult: result,
+      submittedAt: new Date().toISOString()
+    });
+
     alert('Time expired! Your debugged code has been auto-submitted to Supabase PostgreSQL.');
   };
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     if (confirm('Are you ready to submit your debugged code solution?')) {
       setIsSubmitting(true);
       const result = evaluateCodeSubmission(code, questionSpec.coding.test_cases, questionSpec.points);
       setEvaluationResult(result);
+
+      await saveStudentCodeSubmission({
+        studentId: 'candidate-2026-cs-942',
+        questionId: questionSpec.id,
+        round: 'ROUND_02_DEBUGGING',
+        code,
+        language: questionSpec.coding.language || language,
+        compilationStatus: result.status === 'PASSED' ? 'PASSED' : 'FAILED',
+        executionResult: result,
+        submittedAt: new Date().toISOString()
+      });
+
       setTimeout(() => {
         setIsSubmitting(false);
         router.push('/summary');
@@ -351,9 +393,9 @@ export default function DebuggingRoundModule() {
           <div className="bg-slate-950 border-b border-slate-800 px-5 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileCode className="h-4 w-4 text-cyan-400" />
-              <span className="text-xs font-mono text-slate-300">solution.js (JavaScript)</span>
-              <span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                Copy/Paste Disabled
+              <span className="text-xs font-mono text-slate-300 font-bold">{getLanguageFileName(language)}</span>
+              <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+                Language Locked by Admin
               </span>
             </div>
 
@@ -370,7 +412,7 @@ export default function DebuggingRoundModule() {
                 onClick={handleRunValidation}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition-all shadow"
               >
-                <Play className="h-3.5 w-3.5 fill-current" /> Validate Test Matrix
+                <Play className="h-3.5 w-3.5 fill-current" /> Run & Validate ({language.toUpperCase()})
               </button>
             </div>
           </div>
@@ -379,8 +421,8 @@ export default function DebuggingRoundModule() {
           <div className="flex-1 relative">
             <Editor
               height="100%"
-              defaultLanguage="javascript"
-              language={language}
+              defaultLanguage={normalizeMonacoLanguage(language)}
+              language={normalizeMonacoLanguage(language)}
               theme="vs-dark"
               value={code}
               onChange={(val) => setCode(val || '')}
