@@ -27,6 +27,7 @@ export default function RealtimeLeaderboardView() {
             id: s.id || `lead-${idx}`,
             event_id: 'event-2026-main',
             student_id: s.id,
+            registration_id: s.id,
             registration: s.registration_number || s.registration || `MIT-2026-${100 + idx}`,
             name: s.name || 'Candidate',
             college: s.college || 'Engineering Institute',
@@ -34,9 +35,11 @@ export default function RealtimeLeaderboardView() {
             round_2_score: 40,
             round_3_score: 50,
             total_score: 120,
+            completion_time_seconds: 2450,
             rank: idx + 1,
             disqualified: s.status === 'Disqualified' || false,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }));
           setLeaderboard(mapped);
         }

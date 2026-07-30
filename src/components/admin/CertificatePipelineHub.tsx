@@ -31,6 +31,7 @@ export default function CertificatePipelineHub() {
             id: s.id || `lead-${idx}`,
             event_id: 'event-2026-main',
             student_id: s.id,
+            registration_id: s.id,
             registration: s.registration_number || s.registration || `MIT-2026-${100 + idx}`,
             name: s.name || 'Candidate',
             college: s.college || 'Engineering Institute',
@@ -38,9 +39,11 @@ export default function CertificatePipelineHub() {
             round_2_score: 40,
             round_3_score: 50,
             total_score: 120,
+            completion_time_seconds: 2450,
             rank: idx + 1,
             disqualified: s.status === 'Disqualified' || false,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }));
           setCandidates(mapped);
           setSelectedCandidate(mapped[0]);
@@ -75,8 +78,18 @@ export default function CertificatePipelineHub() {
     alert(`Downloading Vector PDF Certificate for ${name}...`);
   };
 
-  const user = selectedCandidate.registration?.user;
-  const verifyHash = `SHA256-SYM-2026-${selectedCandidate.id.toUpperCase()}`;
+  const currentCandidate = selectedCandidate || candidates[0] || {
+    id: 'lead-0',
+    name: 'Candidate',
+    college: 'Engineering Institute',
+    total_score: 120,
+    rank: 1,
+    registration: 'MIT-2026-101'
+  };
+
+  const candAny = currentCandidate as any;
+  const user = candAny.registration?.user || { full_name: candAny.name || 'Candidate', college_name: candAny.college || 'Engineering Institute' };
+  const verifyHash = `SHA256-SYM-2026-${(candAny.id || 'LEAD-0').toUpperCase()}`;
   const verifyUrl = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/verify/${verifyHash}`;
 
   return (
@@ -118,7 +131,7 @@ export default function CertificatePipelineHub() {
             <div className="space-y-1.5">
               <label className="font-semibold text-slate-300">Select Preview Candidate</label>
               <select
-                value={selectedCandidate.id}
+                value={selectedCandidate?.id || ''}
                 onChange={(e) => {
                   const target = candidates.find((c) => c.id === e.target.value);
                   if (target) setSelectedCandidate(target);
