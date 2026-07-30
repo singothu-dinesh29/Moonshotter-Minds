@@ -24,6 +24,14 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publi
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+export function getSupabaseAdmin() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceRoleKey) {
+    return createClient(SUPABASE_URL, serviceRoleKey);
+  }
+  return supabase;
+}
+
 // Mock Database Initializer for standalone dynamic execution
 export const MOCK_EVENT: EventRecord = {
   id: 'evt-symposium-2026',

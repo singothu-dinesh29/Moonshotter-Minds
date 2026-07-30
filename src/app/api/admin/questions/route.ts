@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabase, getSupabaseAdmin } from '@/lib/supabase';
 import { verifyAdminSession } from '@/lib/serverSecurity';
 
 export async function GET(request: NextRequest) {
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const dbClient = getSupabaseAdmin();
     
     // Perform database INSERT / UPSERT operation
     let activePayload = {
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString()
     };
 
-    let { data, error } = await supabase
+    let { data, error } = await dbClient
       .from('questions')
       .upsert(activePayload)
       .select();
