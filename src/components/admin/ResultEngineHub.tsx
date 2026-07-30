@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
-import { getDynamicScorecard } from '@/lib/scoringEngine';
+import { getDynamicScorecard, sortLeaderboardRecords } from '@/lib/scoringEngine';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export interface FullCandidateResult {
@@ -122,10 +122,8 @@ export default function ResultEngineHub() {
           };
         });
 
-        // Sort by final score DESC and assign ranks
-        mapped.sort((a, b) => b.finalScore - a.finalScore);
-        const ranked = mapped.map((item, index) => ({ ...item, rank: index + 1 }));
-
+        // Dynamic 3-Tier Tie-Breaker Sort Algorithm (Score DESC -> Completion Time ASC -> Flags ASC)
+        const ranked = sortLeaderboardRecords(mapped);
         setResults(ranked);
       }
     } catch (err: any) {
@@ -139,7 +137,7 @@ export default function ResultEngineHub() {
   useEffect(() => {
     fetchResultsFromSupabase();
 
-    // Supabase Real-Time Channel Subscription
+    // Supabase Real-Time Channel Subscription for Instant Ranking Updates
     const channel = supabase
       .channel('realtime_admin_results')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
@@ -162,18 +160,23 @@ export default function ResultEngineHub() {
   const handleCalculateScoresAndRankings = () => {
     const updated = results.map((r) => {
       const sum = r.round1Score + r.round2Score + r.round3Score;
+      let status: 'Qualified' | 'Completed' | 'Disqualified' | 'In Progress' | 'Waiting' = r.status;
+      if (r.status !== 'Disqualified') {
+        if (sum >= 70) {
+          status = 'Qualified';
+        } else if (sum > 0) {
+          status = 'Completed';
+        }
+      }
       return {
         ...r,
         finalScore: sum,
-        status: (r.status === 'Disqualified' ? 'Disqualified' : sum >= 100 ? 'Qualified' : 'Completed') as any
+        status
       };
     });
 
-    // Sort by Final Score DESC
-    updated.sort((a, b) => b.finalScore - a.finalScore);
-
-    // Re-assign ranks
-    const ranked = updated.map((item, idx) => ({ ...item, rank: idx + 1 }));
+    // Dynamic 3-Tier Tie-Breaker Sort Algorithm
+    const ranked = sortLeaderboardRecords(updated);
     setResults(ranked);
     alert('Recalculated scores and generated official candidate rankings!');
   };

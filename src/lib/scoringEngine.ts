@@ -171,8 +171,8 @@ export async function syncScorecardToSupabase(scorecard: DynamicScorecard, targe
 export function sortLeaderboardRecords<T extends Record<string, any>>(records: T[]): T[] {
   const sorted = [...records].sort((a, b) => {
     // 1. Final Score (descending)
-    const scoreA = Number(a.total_score ?? a.totalScore ?? 0);
-    const scoreB = Number(b.total_score ?? b.totalScore ?? 0);
+    const scoreA = Number(a.total_score ?? a.totalScore ?? a.finalScore ?? 0);
+    const scoreB = Number(b.total_score ?? b.totalScore ?? b.finalScore ?? 0);
     if (scoreB !== scoreA) {
       return scoreB - scoreA;
     }
