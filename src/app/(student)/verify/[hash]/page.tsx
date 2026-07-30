@@ -5,19 +5,28 @@ import { useParams } from 'next/navigation';
 import { Award, ShieldCheck, CheckCircle2, QrCode, Download, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 
-import { getDynamicScorecard, DynamicScorecard } from '@/lib/scoringEngine';
+import { getDynamicScorecard, calculatePublishedQuestionsMaxScore, DynamicScorecard } from '@/lib/scoringEngine';
 
 export default function CertificateVerificationPage() {
   const params = useParams();
   const verifyHash = params.hash as string;
   const [scorecard, setScorecard] = React.useState<DynamicScorecard | null>(null);
+  const [dynamicMaxScore, setDynamicMaxScore] = React.useState<number>(0);
 
   React.useEffect(() => {
-    setScorecard(getDynamicScorecard());
+    const sc = getDynamicScorecard();
+    setScorecard(sc);
+    if (!sc.totalMaxPoints || sc.totalMaxPoints === 0) {
+      calculatePublishedQuestionsMaxScore().then((maxVal) => {
+        if (maxVal > 0) setDynamicMaxScore(maxVal);
+      });
+    } else {
+      setDynamicMaxScore(sc.totalMaxPoints);
+    }
   }, []);
 
   const totalScore = scorecard ? scorecard.totalScore : 0;
-  const totalMax = scorecard ? scorecard.totalMaxPoints : 120;
+  const totalMax = dynamicMaxScore || (scorecard ? scorecard.totalMaxPoints : 0);
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-4">

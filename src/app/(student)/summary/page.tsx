@@ -3,18 +3,27 @@
 import React from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Award, Clock, ShieldCheck, ArrowRight, Home } from 'lucide-react';
-import { getDynamicScorecard, DynamicScorecard } from '@/lib/scoringEngine';
+import { getDynamicScorecard, calculatePublishedQuestionsMaxScore, DynamicScorecard } from '@/lib/scoringEngine';
 import { formatSeconds } from '@/lib/utils';
 
 export default function SubmissionSummaryPage() {
   const [scorecard, setScorecard] = React.useState<DynamicScorecard | null>(null);
+  const [dynamicMaxScore, setDynamicMaxScore] = React.useState<number>(0);
 
   React.useEffect(() => {
-    setScorecard(getDynamicScorecard());
+    const sc = getDynamicScorecard();
+    setScorecard(sc);
+    if (!sc.totalMaxPoints || sc.totalMaxPoints === 0) {
+      calculatePublishedQuestionsMaxScore().then((maxVal) => {
+        if (maxVal > 0) setDynamicMaxScore(maxVal);
+      });
+    } else {
+      setDynamicMaxScore(sc.totalMaxPoints);
+    }
   }, []);
 
   const totalScore = scorecard ? scorecard.totalScore : 0;
-  const totalMax = scorecard ? scorecard.totalMaxPoints : 120;
+  const totalMax = dynamicMaxScore || (scorecard ? scorecard.totalMaxPoints : 0);
   const completionSec = scorecard ? scorecard.completionTimeSeconds : 0;
   const flags = scorecard ? scorecard.antiCheatFlags : 0;
 

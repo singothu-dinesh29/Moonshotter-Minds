@@ -34,21 +34,30 @@ export default function StudentDashboardView() {
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'EVENTS' | 'ROUNDS' | 'SCORES' | 'INBOX' | 'CERTIFICATES' | 'INSTRUCTIONS'>('OVERVIEW');
 
   const [scorecard, setScorecard] = useState<DynamicScorecard | null>(null);
+  const [dynamicMaxScore, setDynamicMaxScore] = useState<number>(0);
 
   useEffect(() => {
-    setScorecard(getDynamicScorecard());
+    const sc = getDynamicScorecard();
+    setScorecard(sc);
+    if (!sc.totalMaxPoints || sc.totalMaxPoints === 0) {
+      calculatePublishedQuestionsMaxScore().then((maxVal) => {
+        if (maxVal > 0) setDynamicMaxScore(maxVal);
+      });
+    } else {
+      setDynamicMaxScore(sc.totalMaxPoints);
+    }
   }, []);
 
   const totalScore = scorecard ? scorecard.totalScore : 0;
-  const totalMax = scorecard ? scorecard.totalMaxPoints : 120;
+  const totalMax = dynamicMaxScore || (scorecard ? scorecard.totalMaxPoints : 0);
   const completionSec = scorecard ? scorecard.completionTimeSeconds : 0;
   const flags = scorecard ? scorecard.antiCheatFlags : 0;
   const mcqScore = scorecard ? scorecard.mcqScore : 0;
-  const mcqMax = scorecard ? scorecard.mcqMaxPoints : 30;
+  const mcqMax = scorecard ? scorecard.mcqMaxPoints : 0;
   const debugScore = scorecard ? scorecard.debuggingScore : 0;
-  const debugMax = scorecard ? scorecard.debuggingMaxPoints : 40;
+  const debugMax = scorecard ? scorecard.debuggingMaxPoints : 0;
   const crashScore = scorecard ? scorecard.crashFixScore : 0;
-  const crashMax = scorecard ? scorecard.crashFixMaxPoints : 50;
+  const crashMax = scorecard ? scorecard.crashFixMaxPoints : 0;
 
   // Pre-exam countdown timer (e.g. 12 minutes countdown to live round start)
   const [lobbyCountdown, setLobbyCountdown] = useState<number>(12 * 60);

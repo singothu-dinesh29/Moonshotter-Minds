@@ -21,25 +21,52 @@ export function getDynamicScorecard(): DynamicScorecard {
     const cached = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        // Ensure totalMaxPoints is dynamically computed as sum of positive marks
+        parsed.totalMaxPoints = (parsed.mcqMaxPoints || 0) + (parsed.debuggingMaxPoints || 0) + (parsed.crashFixMaxPoints || 0);
+        return parsed;
       } catch (e) {}
     }
   }
 
-  // Dynamic initial zero baseline (No hardcoded values)
+  // Baseline zero state (No hardcoded 120)
   return {
     mcqScore: 0,
-    mcqMaxPoints: 30,
+    mcqMaxPoints: 0,
     debuggingScore: 0,
-    debuggingMaxPoints: 40,
+    debuggingMaxPoints: 0,
     crashFixScore: 0,
-    crashFixMaxPoints: 50,
+    crashFixMaxPoints: 0,
     totalScore: 0,
-    totalMaxPoints: 120,
+    totalMaxPoints: 0,
     completionTimeSeconds: 0,
     antiCheatFlags: 0,
     updatedAt: new Date().toISOString()
   };
+}
+
+/**
+ * Calculates Maximum Score = Sum of Positive Marks of every published question in Supabase DB.
+ */
+export async function calculatePublishedQuestionsMaxScore(): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('questions')
+      .select('*');
+
+    if (!error && data) {
+      const published = data.filter((q: any) => q.status === 'PUBLISHED' || q.status === 'Published');
+      if (published.length > 0) {
+        return published.reduce((sum: number, q: any) => {
+          const positiveMarks = typeof q.points === 'number' ? q.points : (typeof q.marks === 'number' ? q.marks : 0);
+          return sum + positiveMarks;
+        }, 0);
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching published questions max score:', err);
+  }
+  return 0;
 }
 
 export function saveDynamicScorecard(update: Partial<DynamicScorecard>): DynamicScorecard {
@@ -49,15 +76,17 @@ export function saveDynamicScorecard(update: Partial<DynamicScorecard>): Dynamic
     ...update,
     updatedAt: new Date().toISOString()
   };
+  
   next.totalScore = Math.max(0, (next.mcqScore || 0) + (next.debuggingScore || 0) + (next.crashFixScore || 0));
-  next.totalMaxPoints = (next.mcqMaxPoints || 30) + (next.debuggingMaxPoints || 40) + (next.crashFixMaxPoints || 50);
+  // Maximum Score = Sum of Positive Marks of every published question
+  next.totalMaxPoints = (next.mcqMaxPoints || 0) + (next.debuggingMaxPoints || 0) + (next.crashFixMaxPoints || 0);
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   }
 
-  // Asynchronously sync score to Supabase database
+  // Asynchronously sync score & leaderboard to Supabase
   syncScorecardToSupabase(next);
 
   return next;
