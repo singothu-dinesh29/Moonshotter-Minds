@@ -262,7 +262,7 @@ export default function DebuggingRoundModule() {
       saveDynamicScorecard({
         debuggingScore: result.score || 0,
         debuggingMaxPoints: questionSpec.points || 40,
-        antiCheatFlags: warningMessage ? 1 : 0
+        antiCheatFlags: 0
       });
 
       await saveStudentCodeSubmission({

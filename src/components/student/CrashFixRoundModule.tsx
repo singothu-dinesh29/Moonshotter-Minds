@@ -261,7 +261,7 @@ export default function CrashFixRoundModule() {
       saveDynamicScorecard({
         crashFixScore: totalCrashScore,
         crashFixMaxPoints: totalCrashMax,
-        antiCheatFlags: warningMessage ? 1 : 0
+        antiCheatFlags: 0
       });
 
       setTimeout(() => {
