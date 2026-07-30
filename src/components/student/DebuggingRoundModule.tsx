@@ -25,9 +25,9 @@ export default function DebuggingRoundModule() {
   const router = useRouter();
 
   // Admin-Defined Question Specifications
-  const [questionSpec, setQuestionSpec] = useState<any>(MOCK_DEBUG_QUESTION);
-  const [code, setCode] = useState<string>(MOCK_DEBUG_QUESTION.coding.initial_code);
-  const [language, setLanguage] = useState<string>(MOCK_DEBUG_QUESTION.coding.language || 'javascript');
+  const [questionSpec, setQuestionSpec] = useState<any>(null);
+  const [code, setCode] = useState<string>('');
+  const [language, setLanguage] = useState<string>('javascript');
 
   const isExamActiveRef = React.useRef(false);
 
@@ -57,9 +57,12 @@ export default function DebuggingRoundModule() {
               id: `code-${q.id}`,
               question_id: q.id,
               language: (q.language || 'javascript').toLowerCase(),
-              initial_code: q.reference_solution || q.referenceSolution || MOCK_DEBUG_QUESTION.coding.initial_code,
-              solution_code: q.reference_solution || q.referenceSolution || MOCK_DEBUG_QUESTION.coding.solution_code,
-              test_cases: MOCK_DEBUG_QUESTION.coding.test_cases
+              initial_code: q.reference_solution || q.referenceSolution || '',
+              solution_code: q.reference_solution || q.referenceSolution || '',
+              test_cases: [
+                { input: 'twoSum([2, 7, 11, 15], 9)', expected_output: '[0,1]' },
+                { input: 'twoSum([3, 2, 4], 6)', expected_output: '[1,2]' }
+              ]
             }
           };
 
@@ -76,10 +79,17 @@ export default function DebuggingRoundModule() {
               negativeMarks: spec.negative_points
             });
           }
+          return;
         }
       }
+      if (!isExamActiveRef.current) {
+        setQuestionSpec(null);
+      }
     } catch (err) {
-      console.error('Error fetching published debug question:', err);
+      console.error('Error fetching published debug question from Supabase:', err);
+      if (!isExamActiveRef.current) {
+        setQuestionSpec(null);
+      }
     }
   };
 
@@ -127,6 +137,16 @@ export default function DebuggingRoundModule() {
 
   // Anti-Cheat Security Violation Alerts
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
+
+  if (!questionSpec) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center font-mono text-sm text-slate-400 p-8 space-y-4">
+        <AlertTriangle className="h-10 w-10 text-amber-400" />
+        <span className="text-center font-bold text-slate-200">No published questions are available for this round.</span>
+        <p className="text-xs text-slate-500">Please contact your exam admin or check back when questions are published.</p>
+      </div>
+    );
+  }
 
   // 1. Auto-Save Effect (Saves code to localStorage draft every 3 seconds)
   useEffect(() => {

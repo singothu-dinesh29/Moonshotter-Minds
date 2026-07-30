@@ -24,15 +24,12 @@ import { useRouter } from 'next/navigation';
 export default function CrashFixRoundModule() {
   const router = useRouter();
   const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0);
-  const [crashQuestions, setCrashQuestions] = useState<CrashQuestionItem[]>(CRASH_QUESTIONS_2);
+  const [crashQuestions, setCrashQuestions] = useState<CrashQuestionItem[]>([]);
   
-  const currentQ: CrashQuestionItem = crashQuestions[activeQuestionIndex] || crashQuestions[0];
+  const currentQ: CrashQuestionItem | undefined = crashQuestions[activeQuestionIndex] || crashQuestions[0];
 
   // Code state per question
-  const [codeMap, setCodeMap] = useState<Record<string, string>>({
-    [CRASH_QUESTIONS_2[0].id]: CRASH_QUESTIONS_2[0].initialCode,
-    [CRASH_QUESTIONS_2[1].id]: CRASH_QUESTIONS_2[1].initialCode,
-  });
+  const [codeMap, setCodeMap] = useState<Record<string, string>>({});
 
   const isExamActiveRef = React.useRef(false);
 
@@ -57,11 +54,13 @@ export default function CrashFixRoundModule() {
             difficulty: 'MEDIUM',
             description: q.content_markdown || q.description || '',
             crashErrorType: 'Runtime Exception / Recursion Error',
-            initialCode: q.reference_solution || q.referenceSolution || CRASH_QUESTIONS_2[0].initialCode,
-            solutionCode: q.reference_solution || q.referenceSolution || CRASH_QUESTIONS_2[0].solutionCode,
+            initialCode: q.reference_solution || q.referenceSolution || '',
+            solutionCode: q.reference_solution || q.referenceSolution || '',
             expectedPatch: '+ if (!node) return 0;',
             points: q.points || q.marks || 50,
-            testCases: CRASH_QUESTIONS_2[0].testCases
+            testCases: [
+              { input: 'maxDepth(node)', expected_output: '0' }
+            ]
           }));
 
           if (!isExamActiveRef.current) {
@@ -80,10 +79,17 @@ export default function CrashFixRoundModule() {
               negativeMarks: 0
             });
           }
+          return;
         }
       }
+      if (!isExamActiveRef.current) {
+        setCrashQuestions([]);
+      }
     } catch (err) {
-      console.error('Error fetching published crash questions:', err);
+      console.error('Error fetching published crash questions from Supabase:', err);
+      if (!isExamActiveRef.current) {
+        setCrashQuestions([]);
+      }
     }
   };
 
@@ -132,6 +138,16 @@ export default function CrashFixRoundModule() {
 
   // Auto Save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<string>('Saved');
+
+  if (crashQuestions.length === 0 || !currentQ) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center font-mono text-sm text-slate-400 p-8 space-y-4">
+        <AlertOctagon className="h-10 w-10 text-amber-400" />
+        <span className="text-center font-bold text-slate-200">No published questions are available for this round.</span>
+        <p className="text-xs text-slate-500">Please contact your exam admin or check back when questions are published.</p>
+      </div>
+    );
+  }
 
   // Timer State (15 Mins = 900 seconds)
   const [secondsRemaining, setSecondsRemaining] = useState<number>(15 * 60);

@@ -4,10 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { 
   MOCK_EVENT, 
-  MOCK_ROUNDS, 
-  MOCK_MCQ_QUESTIONS, 
-  MOCK_DEBUG_QUESTION, 
-  MOCK_CRASH_QUESTION 
+  MOCK_ROUNDS,
+  supabase 
 } from '@/lib/supabase';
 import { AntiCheatMonitor, AntiCheatIncident } from '@/lib/anticheat';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
@@ -24,7 +22,8 @@ import {
   Zap, 
   FileText,
   Send,
-  Lock
+  Lock,
+  AlertCircle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -35,14 +34,19 @@ export default function ExamArena() {
   const [secondsRemaining, setSecondsRemaining] = useState<number>(45 * 60);
   const [isExamActive, setIsExamActive] = useState<boolean>(true);
 
+  // Live Supabase Questions State
+  const [mcqQuestions, setMcqQuestions] = useState<any[]>([]);
+  const [debugQuestion, setDebugQuestion] = useState<any>(null);
+  const [crashQuestion, setCrashQuestion] = useState<any>(null);
+
   // MCQ Selection State
   const [mcqAnswers, setMcqAnswers] = useState<Record<string, string>>({});
   
   // Code Editor States
-  const [debugCode, setDebugCode] = useState<string>(MOCK_DEBUG_QUESTION.coding.initial_code);
+  const [debugCode, setDebugCode] = useState<string>('');
   const [debugResult, setDebugResult] = useState<EvaluationResult | null>(null);
   
-  const [crashCode, setCrashCode] = useState<string>(MOCK_CRASH_QUESTION.coding.initial_code);
+  const [crashCode, setCrashCode] = useState<string>('');
   const [crashResult, setCrashResult] = useState<EvaluationResult | null>(null);
 
   // Anti-Cheat Telemetry State
@@ -50,6 +54,88 @@ export default function ExamArena() {
   const [isDisqualified, setIsDisqualified] = useState<boolean>(false);
   const [showWarningModal, setShowWarningModal] = useState<boolean>(false);
   const [latestIncident, setLatestIncident] = useState<AntiCheatIncident | null>(null);
+
+  const fetchPublishedQuestions = async () => {
+    try {
+      const { data } = await supabase.from('questions').select('*');
+      if (data) {
+        const published = data.filter((q: any) => q.status === 'PUBLISHED' || q.status === 'Published');
+        
+        // MCQ Questions
+        const mcqs = published.filter((q: any) => q.type === 'MCQ' || q.round_id === 'round-1');
+        const mappedMcqs = mcqs.map((q: any) => ({
+          id: q.id,
+          title: q.title,
+          content_markdown: q.content_markdown || q.description || '',
+          points: q.points || q.marks || 10,
+          negative_points: q.negative_points || q.negativeMarks || 0,
+          options: (q.mcq_options || q.mcqOptions || []).map((o: any) => ({
+            id: o.id || `opt-${o.text}`,
+            option_text: o.text || o.option_text || ''
+          }))
+        }));
+        setMcqQuestions(mappedMcqs);
+
+        // Debugging Question
+        const debugs = published.filter((q: any) => q.type === 'Debugging' || q.round_id === 'round-2');
+        if (debugs.length > 0) {
+          const dq = debugs[0];
+          setDebugQuestion({
+            id: dq.id,
+            title: dq.title,
+            content_markdown: dq.content_markdown || dq.description || '',
+            points: dq.points || dq.marks || 40,
+            coding: {
+              initial_code: dq.reference_solution || dq.referenceSolution || '',
+              test_cases: [
+                { input: 'twoSum([2, 7, 11, 15], 9)', expected_output: '[0,1]' },
+                { input: 'twoSum([3, 2, 4], 6)', expected_output: '[1,2]' }
+              ]
+            }
+          });
+          setDebugCode(dq.reference_solution || dq.referenceSolution || '');
+        } else {
+          setDebugQuestion(null);
+        }
+
+        // Crash Question
+        const crashes = published.filter((q: any) => q.type === 'Crash & Fix' || q.round_id === 'round-3');
+        if (crashes.length > 0) {
+          const cq = crashes[0];
+          setCrashQuestion({
+            id: cq.id,
+            title: cq.title,
+            content_markdown: cq.content_markdown || cq.description || '',
+            points: cq.points || cq.marks || 50,
+            coding: {
+              initial_code: cq.reference_solution || cq.referenceSolution || '',
+              test_cases: [
+                { input: 'maxDepth(node)', expected_output: '0' }
+              ]
+            }
+          });
+          setCrashCode(cq.reference_solution || cq.referenceSolution || '');
+        } else {
+          setCrashQuestion(null);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching exam arena questions:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPublishedQuestions();
+
+    const channel = supabase
+      .channel('realtime_exam_arena')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => fetchPublishedQuestions())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Initialize Anti-Cheat Sensors
   useEffect(() => {
@@ -87,12 +173,14 @@ export default function ExamArena() {
 
   // Code Evaluation Handler
   const handleRunDebugCode = () => {
-    const res = evaluateCodeSubmission(debugCode, MOCK_DEBUG_QUESTION.coding.test_cases, MOCK_DEBUG_QUESTION.points);
+    if (!debugQuestion) return;
+    const res = evaluateCodeSubmission(debugCode, debugQuestion.coding.test_cases, debugQuestion.points);
     setDebugResult(res);
   };
 
   const handleRunCrashCode = () => {
-    const res = evaluateCodeSubmission(crashCode, MOCK_CRASH_QUESTION.coding.test_cases, MOCK_CRASH_QUESTION.points);
+    if (!crashQuestion) return;
+    const res = evaluateCodeSubmission(crashCode, crashQuestion.coding.test_cases, crashQuestion.points);
     setCrashResult(res);
   };
 
@@ -206,59 +294,72 @@ export default function ExamArena() {
               <p className="text-xs text-slate-400">{MOCK_ROUNDS[0].instructions}</p>
             </div>
 
-            {MOCK_MCQ_QUESTIONS.map((q, qIdx) => (
-              <div key={q.id} className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <span className="text-xs font-mono text-indigo-400 font-semibold">QUESTION {qIdx + 1} OF {MOCK_MCQ_QUESTIONS.length}</span>
-                  <span className="text-xs font-mono bg-indigo-500/10 text-indigo-300 px-2.5 py-0.5 rounded border border-indigo-500/20">
-                    +{q.points} PTS / -{q.negative_points} PTS
-                  </span>
-                </div>
-
-                <h4 className="text-base font-medium text-white">{q.title}</h4>
-                <div className="bg-slate-950 p-4 rounded-lg font-mono text-xs text-slate-300 border border-slate-800">
-                  {q.content_markdown}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                  {q.options.map((opt: any) => {
-                    const isSelected = mcqAnswers[q.id] === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        onClick={() => handleOptionSelect(q.id, opt.id)}
-                        className={`p-4 rounded-xl text-left text-xs font-medium border transition-all flex items-center justify-between ${
-                          isSelected
-                            ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-md'
-                            : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
-                        }`}
-                      >
-                        <span>{opt.option_text}</span>
-                        {isSelected && <Check className="h-4 w-4 text-indigo-400 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
+            {mcqQuestions.length === 0 ? (
+              <div className="bg-slate-900 border border-dashed border-slate-800 p-12 rounded-2xl text-center space-y-3 font-mono text-sm text-slate-400">
+                <AlertCircle className="h-8 w-8 text-amber-400 mx-auto" />
+                <div className="font-bold text-slate-200">No published questions are available for this round.</div>
               </div>
-            ))}
+            ) : (
+              mcqQuestions.map((q, qIdx) => (
+                <div key={q.id} className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <span className="text-xs font-mono text-indigo-400 font-semibold">QUESTION {qIdx + 1} OF {mcqQuestions.length}</span>
+                    <span className="text-xs font-mono bg-indigo-500/10 text-indigo-300 px-2.5 py-0.5 rounded border border-indigo-500/20">
+                      +{q.points} PTS / -{q.negative_points} PTS
+                    </span>
+                  </div>
+
+                  <h4 className="text-base font-medium text-white">{q.title}</h4>
+                  <div className="bg-slate-950 p-4 rounded-lg font-mono text-xs text-slate-300 border border-slate-800">
+                    {q.content_markdown}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                    {q.options.map((opt: any) => {
+                      const isSelected = mcqAnswers[q.id] === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() => handleOptionSelect(q.id, opt.id)}
+                          className={`p-4 rounded-xl text-left text-xs font-medium border transition-all flex items-center justify-between ${
+                            isSelected
+                              ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-md'
+                              : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:border-slate-700'
+                          }`}
+                        >
+                          <span>{opt.option_text}</span>
+                          {isSelected && <Check className="h-4 w-4 text-indigo-400 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 
         {/* ROUND 2: DEBUGGING ARENA */}
         {activeRoundIndex === 1 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Left: Problem Statement & Test Matrix */}
-            <div className="space-y-4 flex flex-col">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-base text-white">{MOCK_DEBUG_QUESTION.title}</h3>
-                  <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded border border-cyan-500/20">
-                    +{MOCK_DEBUG_QUESTION.points} POINTS
-                  </span>
+          !debugQuestion ? (
+            <div className="bg-slate-900 border border-dashed border-slate-800 p-12 rounded-2xl text-center space-y-3 font-mono text-sm text-slate-400">
+              <AlertCircle className="h-8 w-8 text-amber-400 mx-auto" />
+              <div className="font-bold text-slate-200">No published questions are available for this round.</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Left: Problem Statement & Test Matrix */}
+              <div className="space-y-4 flex flex-col">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-base text-white">{debugQuestion.title}</h3>
+                    <span className="text-xs font-mono text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded border border-cyan-500/20">
+                      +{debugQuestion.points} POINTS
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">{debugQuestion.content_markdown}</p>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">{MOCK_DEBUG_QUESTION.content_markdown}</p>
-              </div>
 
               {/* Test Cases Box */}
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex-1 flex flex-col">
@@ -326,30 +427,36 @@ export default function ExamArena() {
             </div>
 
           </div>
-        )}
+        ))}
 
         {/* ROUND 3: CRASH & FIX ARENA */}
         {activeRoundIndex === 2 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Left: Problem & Target Crash Patch */}
-            <div className="space-y-4 flex flex-col">
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-base text-white">{MOCK_CRASH_QUESTION.title}</h3>
-                  <span className="text-xs font-mono text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded border border-purple-500/20">
-                    +{MOCK_CRASH_QUESTION.points} POINTS
-                  </span>
+          !crashQuestion ? (
+            <div className="bg-slate-900 border border-dashed border-slate-800 p-12 rounded-2xl text-center space-y-3 font-mono text-sm text-slate-400">
+              <AlertCircle className="h-8 w-8 text-amber-400 mx-auto" />
+              <div className="font-bold text-slate-200">No published questions are available for this round.</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Left: Problem & Target Crash Patch */}
+              <div className="space-y-4 flex flex-col">
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-base text-white">{crashQuestion.title}</h3>
+                    <span className="text-xs font-mono text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded border border-purple-500/20">
+                      +{crashQuestion.points} POINTS
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">{crashQuestion.content_markdown}</p>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">{MOCK_CRASH_QUESTION.content_markdown}</p>
-              </div>
 
-              {/* Target Diff View */}
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex-1">
-                <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Required Patch Diff Target</h4>
-                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-emerald-400">
-                  {MOCK_CRASH_QUESTION.coding.crash_patch_target}
-                </div>
+                {/* Target Diff View */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex-1">
+                  <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Required Patch Diff Target</h4>
+                  <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs font-mono text-emerald-400">
+                    + if (!node) return 0;
+                  </div>
 
                 {crashResult && (
                   <div className="mt-4 pt-4 border-t border-slate-800 space-y-2">
@@ -404,7 +511,7 @@ export default function ExamArena() {
             </div>
 
           </div>
-        )}
+        ))}
 
       </main>
 

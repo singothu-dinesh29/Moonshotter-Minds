@@ -59,13 +59,8 @@ export default function McqExamModule() {
             content: q.content_markdown || q.description || '',
             points: q.points || q.marks || 10,
             negativePoints: q.negative_points || q.negativeMarks || 0,
-            options: (q.mcq_options || q.mcqOptions || [
-              { id: 'opt-1a', text: 'O(1) Constant time' },
-              { id: 'opt-1b', text: 'O(log N) Logarithmic time' },
-              { id: 'opt-1c', text: 'O(N) Linear time' },
-              { id: 'opt-1d', text: 'O(N log N) Linearithmic time' }
-            ]).map((opt: any) => ({
-              id: opt.id,
+            options: (q.mcq_options || q.mcqOptions || []).map((opt: any) => ({
+              id: opt.id || `opt-${opt.text}`,
               text: opt.text || opt.option_text || ''
             }))
           }));
@@ -86,19 +81,13 @@ export default function McqExamModule() {
         }
       }
       if (!isExamActiveRef.current) {
-        const fallback = getRandomizedQuestions();
-        setQuestions(fallback);
-        createExamSnapshot({
-          studentId: 'candidate-2026-cs-942',
-          round: 'ROUND_01_MCQ',
-          questions: fallback,
-          timer: 15 * 60,
-          marks: 30,
-          negativeMarks: 2
-        });
+        setQuestions([]);
       }
     } catch (err) {
-      console.error('Error fetching published MCQs:', err);
+      console.error('Error fetching published MCQs from Supabase:', err);
+      if (!isExamActiveRef.current) {
+        setQuestions([]);
+      }
     }
   };
 
@@ -196,8 +185,10 @@ export default function McqExamModule() {
 
   if (questions.length === 0) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center font-mono text-xs text-slate-400">
-        Initializing 15 Randomized MCQ Questions...
+      <div className="min-h-[60vh] flex flex-col items-center justify-center font-mono text-sm text-slate-400 p-8 space-y-4">
+        <AlertCircle className="h-10 w-10 text-amber-400" />
+        <span className="text-center font-bold text-slate-200">No published questions are available for this round.</span>
+        <p className="text-xs text-slate-500">Please contact your exam admin or check back when questions are published.</p>
       </div>
     );
   }
