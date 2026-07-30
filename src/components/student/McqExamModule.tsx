@@ -190,6 +190,11 @@ export default function McqExamModule() {
   const computeMcqScore = () => {
     let score = 0;
     let maxPts = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let skippedCount = 0;
+    let posMarksGained = 0;
+    let negMarksDeducted = 0;
 
     questions.forEach((q) => {
       // Always use marks stored in Supabase (never assume from difficulty)
@@ -202,46 +207,69 @@ export default function McqExamModule() {
       const selectedId = answers[q.id];
       if (!selectedId) {
         // Skipped: Score += 0
+        skippedCount++;
         score += 0;
       } else {
         const matchedOpt = q.options.find((opt) => opt.id === selectedId);
         if (matchedOpt && matchedOpt.isCorrect) {
           // Correct: Score += Positive Marks
+          correctCount++;
+          posMarksGained += positiveMarks;
           score += positiveMarks;
         } else {
           // Wrong: Score += Negative Marks
+          wrongCount++;
+          negMarksDeducted += Math.abs(negativeMarks);
           score += negativeMarks;
         }
       }
     });
 
     const finalScore = Math.max(0, score);
-    return { finalScore, maxPts };
+    return {
+      finalScore,
+      maxPts,
+      correctCount,
+      wrongCount,
+      skippedCount,
+      posMarksGained,
+      negMarksDeducted
+    };
   };
 
   const handleAutoSubmit = () => {
     if (isSubmitted) return;
     setIsSubmitted(true);
 
-    const { finalScore, maxPts } = computeMcqScore();
-    setSubmittedScore(finalScore);
+    const stats = computeMcqScore();
+    setSubmittedScore(stats.finalScore);
     saveDynamicScorecard({
-      mcqScore: finalScore,
-      mcqMaxPoints: maxPts,
+      mcqScore: stats.finalScore,
+      mcqMaxPoints: stats.maxPts,
+      correctAnswers: stats.correctCount,
+      wrongAnswers: stats.wrongCount,
+      skippedQuestions: stats.skippedCount,
+      positiveMarks: stats.posMarksGained,
+      negativeMarks: stats.negMarksDeducted,
       completionTimeSeconds: 15 * 60 - secondsRemaining
     });
 
-    alert(`Time expired! MCQ Round submitted. Score: ${finalScore}/${maxPts}`);
+    alert(`Time expired! MCQ Round submitted. Score: ${stats.finalScore}/${stats.maxPts}`);
   };
 
   const handleManualSubmit = () => {
     if (confirm('Are you sure you want to finish and submit the MCQ examination round?')) {
       setIsSubmitted(true);
-      const { finalScore, maxPts } = computeMcqScore();
-      setSubmittedScore(finalScore);
+      const stats = computeMcqScore();
+      setSubmittedScore(stats.finalScore);
       saveDynamicScorecard({
-        mcqScore: finalScore,
-        mcqMaxPoints: maxPts,
+        mcqScore: stats.finalScore,
+        mcqMaxPoints: stats.maxPts,
+        correctAnswers: stats.correctCount,
+        wrongAnswers: stats.wrongCount,
+        skippedQuestions: stats.skippedCount,
+        positiveMarks: stats.posMarksGained,
+        negativeMarks: stats.negMarksDeducted,
         completionTimeSeconds: 15 * 60 - secondsRemaining
       });
 

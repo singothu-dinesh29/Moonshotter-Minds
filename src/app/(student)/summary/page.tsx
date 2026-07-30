@@ -27,6 +27,13 @@ export default function SubmissionSummaryPage() {
   const completionSec = scorecard ? scorecard.completionTimeSeconds : 0;
   const flags = scorecard ? scorecard.antiCheatFlags : 0;
 
+  const correctAnswers = scorecard ? scorecard.correctAnswers : 0;
+  const wrongAnswers = scorecard ? scorecard.wrongAnswers : 0;
+  const skippedQuestions = scorecard ? scorecard.skippedQuestions : 0;
+  const positiveMarks = scorecard ? scorecard.positiveMarks : 0;
+  const negativeMarks = scorecard ? scorecard.negativeMarks : 0;
+  const percentage = totalMax > 0 ? Number(((totalScore / totalMax) * 100).toFixed(1)) : 0;
+
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-4">
       <div className="max-w-2xl w-full glass-panel-glow p-8 rounded-2xl border border-slate-800 space-y-6 text-center">
@@ -45,23 +52,46 @@ export default function SubmissionSummaryPage() {
           </p>
         </div>
 
-        {/* Dynamic Attempt Statistics Grid */}
-        <div className="grid grid-cols-3 gap-4 bg-slate-950 p-6 rounded-xl border border-slate-800 font-mono text-left">
-          <div>
-            <span className="text-[10px] text-slate-500 block">TOTAL SCORE</span>
-            <span className="text-xl font-bold text-indigo-400">{totalScore} / {totalMax}</span>
+        {/* Dynamic Detailed Evaluation Breakdown Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950 p-6 rounded-xl border border-slate-800 font-mono text-left">
+          <div className="space-y-1">
+            <span className="text-[10px] text-slate-500 block">FINAL SCORE</span>
+            <span className="text-lg font-bold text-indigo-400">{totalScore}</span>
           </div>
 
-          <div>
+          <div className="space-y-1">
+            <span className="text-[10px] text-slate-500 block">MAXIMUM SCORE</span>
+            <span className="text-lg font-bold text-slate-200">{totalMax}</span>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] text-slate-500 block">PERCENTAGE</span>
+            <span className="text-lg font-bold text-cyan-400">{percentage}%</span>
+          </div>
+
+          <div className="space-y-1">
             <span className="text-[10px] text-slate-500 block">COMPLETION TIME</span>
-            <span className="text-xl font-bold text-slate-200">{completionSec > 0 ? formatSeconds(completionSec) : '14m 22s'}</span>
+            <span className="text-lg font-bold text-slate-200">{completionSec > 0 ? formatSeconds(completionSec) : '14m 22s'}</span>
           </div>
 
-          <div>
-            <span className="text-[10px] text-slate-500 block">ANTI-CHEAT AUDIT</span>
-            <span className={`text-xl font-bold ${flags > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-              {flags > 0 ? `FLAGGED (${flags})` : 'CLEAN (0 Flags)'}
-            </span>
+          <div className="space-y-1 pt-2 border-t border-slate-800/80">
+            <span className="text-[10px] text-slate-500 block">CORRECT ANSWERS</span>
+            <span className="text-base font-bold text-emerald-400">{correctAnswers}</span>
+          </div>
+
+          <div className="space-y-1 pt-2 border-t border-slate-800/80">
+            <span className="text-[10px] text-slate-500 block">WRONG ANSWERS</span>
+            <span className="text-base font-bold text-rose-400">{wrongAnswers}</span>
+          </div>
+
+          <div className="space-y-1 pt-2 border-t border-slate-800/80">
+            <span className="text-[10px] text-slate-500 block">SKIPPED QUESTIONS</span>
+            <span className="text-base font-bold text-amber-400">{skippedQuestions}</span>
+          </div>
+
+          <div className="space-y-1 pt-2 border-t border-slate-800/80">
+            <span className="text-[10px] text-slate-500 block">POSITIVE / NEGATIVE</span>
+            <span className="text-xs font-bold text-emerald-400">+{positiveMarks} <span className="text-rose-400">/ -{negativeMarks}</span></span>
           </div>
         </div>
 

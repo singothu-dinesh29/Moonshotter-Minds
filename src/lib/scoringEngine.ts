@@ -7,8 +7,18 @@ export interface DynamicScorecard {
   debuggingMaxPoints: number;
   crashFixScore: number;
   crashFixMaxPoints: number;
+  
+  // Detailed marking metrics
+  correctAnswers: number;
+  wrongAnswers: number;
+  skippedQuestions: number;
+  positiveMarks: number;
+  negativeMarks: number;
+
   totalScore: number;
   totalMaxPoints: number;
+  percentage: number;
+
   completionTimeSeconds: number;
   antiCheatFlags: number;
   updatedAt: string;
@@ -22,14 +32,13 @@ export function getDynamicScorecard(): DynamicScorecard {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        // Ensure totalMaxPoints is dynamically computed as sum of positive marks
         parsed.totalMaxPoints = (parsed.mcqMaxPoints || 0) + (parsed.debuggingMaxPoints || 0) + (parsed.crashFixMaxPoints || 0);
+        parsed.percentage = parsed.totalMaxPoints > 0 ? Number(((parsed.totalScore / parsed.totalMaxPoints) * 100).toFixed(1)) : 0;
         return parsed;
       } catch (e) {}
     }
   }
 
-  // Baseline zero state (No hardcoded 120)
   return {
     mcqScore: 0,
     mcqMaxPoints: 0,
@@ -37,8 +46,17 @@ export function getDynamicScorecard(): DynamicScorecard {
     debuggingMaxPoints: 0,
     crashFixScore: 0,
     crashFixMaxPoints: 0,
+
+    correctAnswers: 0,
+    wrongAnswers: 0,
+    skippedQuestions: 0,
+    positiveMarks: 0,
+    negativeMarks: 0,
+
     totalScore: 0,
     totalMaxPoints: 0,
+    percentage: 0,
+
     completionTimeSeconds: 0,
     antiCheatFlags: 0,
     updatedAt: new Date().toISOString()
@@ -78,8 +96,11 @@ export function saveDynamicScorecard(update: Partial<DynamicScorecard>): Dynamic
   };
   
   next.totalScore = Math.max(0, (next.mcqScore || 0) + (next.debuggingScore || 0) + (next.crashFixScore || 0));
-  // Maximum Score = Sum of Positive Marks of every published question
-  next.totalMaxPoints = (next.mcqMaxPoints || 0) + (next.debuggingMaxPoints || 0) + (next.crashFixMaxPoints || 0);
+  next.totalMaxPoints = (next.mcqMaxPoints || 0) + (next.debuggingMaxPoints || 0) + (next.crashFixScore || 0) > 0 
+    ? (next.mcqMaxPoints || 0) + (next.debuggingMaxPoints || 0) + (next.crashFixMaxPoints || 0) 
+    : next.totalMaxPoints;
+
+  next.percentage = next.totalMaxPoints > 0 ? Number(((next.totalScore / next.totalMaxPoints) * 100).toFixed(1)) : 0;
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
