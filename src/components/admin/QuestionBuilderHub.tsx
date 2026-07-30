@@ -32,7 +32,8 @@ import {
   Archive,
   Layers,
   Send,
-  Loader2
+  Loader2,
+  Save
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import MonacoPlayground from '@/components/shared/MonacoPlayground';
@@ -315,6 +316,49 @@ export default function QuestionBuilderHub() {
     setFormData({ ...q });
     setEditingQuestion(q);
     setShowModal(true);
+  };
+
+  // Dynamic Type Switching Handler
+  const handleTypeChange = (newType: QuestionType) => {
+    setFormData((prev) => ({
+      ...prev,
+      type: newType,
+      round: newType === 'MCQ' ? 'Round 1: Speed MCQ' : newType === 'Debugging' ? 'Round 2: Algorithmic Debugging' : 'Round 3: Crash & Fix',
+      language: newType === 'MCQ' ? 'SQL' : prev.language || 'JavaScript',
+      marks: newType === 'MCQ' ? (prev.marks || 10) : newType === 'Debugging' ? (prev.marks || 40) : (prev.marks || 50),
+      negativeMarks: newType === 'MCQ' ? (prev.negativeMarks ?? 2) : 0,
+      timeLimitSec: newType === 'MCQ' ? 60 : newType === 'Debugging' ? 120 : 180,
+      mcqOptions: prev.mcqOptions && prev.mcqOptions.length === 4 ? prev.mcqOptions : [
+        { id: 'opt-1', text: '', isCorrect: true },
+        { id: 'opt-2', text: '', isCorrect: false },
+        { id: 'opt-3', text: '', isCorrect: false },
+        { id: 'opt-4', text: '', isCorrect: false },
+      ]
+    }));
+  };
+
+  const handleMcqOptionChange = (idx: number, text: string) => {
+    const currentOptions = (formData.mcqOptions && formData.mcqOptions.length === 4) ? [...formData.mcqOptions] : [
+      { id: 'opt-1', text: '', isCorrect: true },
+      { id: 'opt-2', text: '', isCorrect: false },
+      { id: 'opt-3', text: '', isCorrect: false },
+      { id: 'opt-4', text: '', isCorrect: false },
+    ];
+    currentOptions[idx] = { ...currentOptions[idx], text };
+    setFormData({ ...formData, mcqOptions: currentOptions });
+  };
+
+  const handleMcqCorrectSelect = (idx: number) => {
+    const currentOptions = ((formData.mcqOptions && formData.mcqOptions.length === 4) ? formData.mcqOptions : [
+      { id: 'opt-1', text: '', isCorrect: true },
+      { id: 'opt-2', text: '', isCorrect: false },
+      { id: 'opt-3', text: '', isCorrect: false },
+      { id: 'opt-4', text: '', isCorrect: false },
+    ]).map((opt, i) => ({
+      ...opt,
+      isCorrect: i === idx
+    }));
+    setFormData({ ...formData, mcqOptions: currentOptions });
   };
 
   // Save Question & Store Version History
@@ -779,14 +823,19 @@ export default function QuestionBuilderHub() {
         </div>
       )}
 
-      {/* 6. CREATE / EDIT FORM MODAL */}
+      {/* 6. DYNAMIC QUESTION AUTHORING FORM MODAL */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="max-w-3xl w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base text-white">
-                {editingQuestion ? 'Edit Question & Save New Version' : `Author New ${formData.type} Question`}
-              </h3>
+              <div>
+                <h3 className="font-bold text-base text-white">
+                  {editingQuestion ? 'Edit Question & Save New Version' : `Author New ${formData.type || 'MCQ'} Question`}
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  Select Question Type to dynamically customize the authoring fields.
+                </p>
+              </div>
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
@@ -794,24 +843,45 @@ export default function QuestionBuilderHub() {
 
             <form onSubmit={handleSave} className="space-y-4 font-sans text-xs">
               
-              <div className="grid grid-cols-2 gap-4">
+              {/* TOP CONTROL ROW: TYPE, TITLE, STATUS */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1. Question Type Dropdown */}
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-bold flex items-center justify-between">
+                    <span>Question Type</span>
+                    <span className="text-amber-400 font-mono text-[10px]">* Required</span>
+                  </label>
+                  <select
+                    value={formData.type || 'MCQ'}
+                    onChange={(e) => handleTypeChange(e.target.value as QuestionType)}
+                    className="w-full bg-slate-950 border border-amber-500/50 rounded-xl p-3 text-amber-400 font-bold font-mono focus:border-amber-400 focus:outline-none shadow-sm"
+                  >
+                    <option value="MCQ">MCQ</option>
+                    <option value="Debugging">Debugging</option>
+                    <option value="Crash & Fix">Crash & Fix</option>
+                  </select>
+                </div>
+
+                {/* 2. Question Title */}
                 <div className="space-y-1">
                   <label className="text-slate-300 font-bold">Question Title</label>
                   <input
                     type="text"
                     required
-                    value={formData.title}
+                    placeholder="Enter descriptive question title..."
+                    value={formData.title || ''}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-indigo-500 focus:outline-none"
                   />
                 </div>
 
+                {/* 3. Status Dropdown */}
                 <div className="space-y-1">
                   <label className="text-slate-300 font-bold">Status (Draft, Published, Archived)</label>
                   <select
-                    value={formData.status}
+                    value={formData.status || 'Draft'}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-amber-400 font-bold font-mono"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-amber-400 font-bold font-mono focus:border-amber-400 focus:outline-none"
                   >
                     <option value="Draft">Draft</option>
                     <option value="Published">Published</option>
@@ -820,40 +890,246 @@ export default function QuestionBuilderHub() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-slate-300 font-bold">Question Description Scenario</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono"
-                />
+              {/* SECOND ROW: METADATA & PARAMS */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-semibold text-[11px]">Language</label>
+                  <select
+                    value={formData.language || 'JavaScript'}
+                    onChange={(e) => setFormData({ ...formData, language: e.target.value as any })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                  >
+                    <option value="JavaScript">JavaScript</option>
+                    <option value="Python">Python</option>
+                    <option value="C++">C++</option>
+                    <option value="Java">Java</option>
+                    <option value="SQL">SQL</option>
+                    <option value="TypeScript">TypeScript</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-semibold text-[11px]">Difficulty</label>
+                  <select
+                    value={formData.difficulty || 'Medium'}
+                    onChange={(e) => setFormData({ ...formData, difficulty: e.target.value as any })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                  >
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-semibold text-[11px]">Marks / Points</label>
+                  <input
+                    type="number"
+                    value={formData.marks || 10}
+                    onChange={(e) => setFormData({ ...formData, marks: parseInt(e.target.value) || 0 })}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-400 font-semibold text-[11px]">
+                    {formData.type === 'MCQ' ? 'Negative Marking' : 'Time Limit (Sec)'}
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.type === 'MCQ' ? (formData.negativeMarks ?? 2) : (formData.timeLimitSec ?? 60)}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      if (formData.type === 'MCQ') {
+                        setFormData({ ...formData, negativeMarks: val });
+                      } else {
+                        setFormData({ ...formData, timeLimitSec: val });
+                      }
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-amber-300 font-mono"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-slate-300 font-bold">Reference Solution / Code Model</label>
-                <textarea
-                  rows={3}
-                  value={formData.referenceSolution}
-                  onChange={(e) => setFormData({ ...formData, referenceSolution: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-cyan-300 font-mono"
-                />
-              </div>
+              {/* DYNAMIC FORM SECTION: BASED ON QUESTION TYPE */}
 
-              <div className="flex gap-3 pt-3">
+              {/* 1. MCQ SPECIFIC FIELDS */}
+              {formData.type === 'MCQ' && (
+                <div className="space-y-4 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-bold flex items-center justify-between">
+                      <span>Question Description Scenario</span>
+                      <span className="text-[10px] text-slate-500 font-mono">Markdown Supported</span>
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="Enter MCQ problem statement or code snippet scenario..."
+                      value={formData.description || ''}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* 4 MCQ CHOICE OPTIONS WITH CORRECT ANSWER SELECTION */}
+                  <div className="space-y-2.5 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-indigo-400 text-xs uppercase tracking-wider">MCQ Choice Options (4 Choices)</span>
+                      <span className="text-[10px] text-slate-400 font-mono">Select radio button for Correct Answer</span>
+                    </div>
+
+                    {['A', 'B', 'C', 'D'].map((letter, idx) => {
+                      const options = (formData.mcqOptions && formData.mcqOptions.length === 4) ? formData.mcqOptions : [
+                        { id: 'opt-1', text: '', isCorrect: true },
+                        { id: 'opt-2', text: '', isCorrect: false },
+                        { id: 'opt-3', text: '', isCorrect: false },
+                        { id: 'opt-4', text: '', isCorrect: false },
+                      ];
+                      const opt = options[idx] || { id: `opt-${idx+1}`, text: '', isCorrect: idx === 0 };
+
+                      return (
+                        <div key={idx} className="flex items-center gap-3 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                          <span className={`h-7 w-7 rounded-lg font-mono font-bold text-xs flex items-center justify-center shrink-0 ${opt.isCorrect ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`}>
+                            {letter}
+                          </span>
+                          <input
+                            type="text"
+                            required
+                            placeholder={`Option ${letter} Choice Text...`}
+                            value={opt.text}
+                            onChange={(e) => handleMcqOptionChange(idx, e.target.value)}
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                          />
+                          <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer font-mono px-2 py-1 rounded bg-slate-950 border border-slate-800 hover:border-emerald-500/50">
+                            <input
+                              type="radio"
+                              name="mcqCorrectOption"
+                              checked={opt.isCorrect}
+                              onChange={() => handleMcqCorrectSelect(idx)}
+                              className="accent-emerald-500 h-3.5 w-3.5"
+                            />
+                            <span className={opt.isCorrect ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                              {opt.isCorrect ? 'Correct' : 'Mark Correct'}
+                            </span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-bold">Reference Solution / Answer Model</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Provide answer explanation or reference model..."
+                      value={formData.referenceSolution || ''}
+                      onChange={(e) => setFormData({ ...formData, referenceSolution: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-cyan-300 font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 2. DEBUGGING SPECIFIC FIELDS */}
+              {formData.type === 'Debugging' && (
+                <div className="space-y-4 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-bold">Bug Scenario & Problem Description</label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="Describe the logic flaw, off-by-one bug, or memory leak..."
+                      value={formData.description || ''}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono focus:border-cyan-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-bold text-cyan-400 flex items-center justify-between">
+                      <span>Buggy Starter Code (Code Provided to Student)</span>
+                      <span className="text-[10px] text-slate-500 font-mono">Monospace Code Editor</span>
+                    </label>
+                    <textarea
+                      rows={5}
+                      required
+                      placeholder="function buggyFunction(arr) { ... }"
+                      value={formData.referenceSolution || ''}
+                      onChange={(e) => setFormData({ ...formData, referenceSolution: e.target.value })}
+                      className="w-full bg-slate-950 border border-cyan-500/30 rounded-xl p-3 text-cyan-300 font-mono focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-bold">Expected Output / Target Test Case Result</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. [0, 1] or OK"
+                      value={formData.expectedOutput || ''}
+                      onChange={(e) => setFormData({ ...formData, expectedOutput: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-emerald-400 font-mono focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 3. CRASH & FIX SPECIFIC FIELDS */}
+              {formData.type === 'Crash & Fix' && (
+                <div className="space-y-4 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-bold text-purple-400">Crash Scenario & Exception Type</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. RangeError: Maximum call stack size exceeded"
+                      value={formData.category || ''}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full bg-slate-950 border border-purple-500/30 rounded-xl p-3 text-purple-300 font-mono focus:border-purple-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-bold">Problem Scenario Description</label>
+                    <textarea
+                      rows={3}
+                      required
+                      placeholder="Describe the condition triggering the runtime crash..."
+                      value={formData.description || ''}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono focus:border-purple-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-slate-300 font-bold text-purple-400 flex items-center justify-between">
+                      <span>Crashing Code Model & Required Patch</span>
+                      <span className="text-[10px] font-mono font-bold text-emerald-400">+ if (!node) return 0;</span>
+                    </label>
+                    <textarea
+                      rows={5}
+                      required
+                      placeholder="def maxDepth(root):\n    # Crashing missing base case\n    return max(maxDepth(root.left), maxDepth(root.right)) + 1"
+                      value={formData.referenceSolution || ''}
+                      onChange={(e) => setFormData({ ...formData, referenceSolution: e.target.value })}
+                      className="w-full bg-slate-950 border border-purple-500/30 rounded-xl p-3 text-purple-300 font-mono focus:border-purple-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* MODAL ACTION BUTTONS */}
+              <div className="flex gap-3 pt-4 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold"
+                  className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-yellow-400 text-slate-950 font-black shadow"
+                  className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-yellow-400 text-slate-950 font-black shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
                 >
-                  Save Question & Create Version Log
+                  <Save className="h-4 w-4" /> Save Question & Create Version Log
                 </button>
               </div>
 
