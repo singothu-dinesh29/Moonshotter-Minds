@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getRandomizedQuestions, MCQItem } from '@/lib/mcqBank';
 import { formatSeconds } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 import { 
   Clock, 
   CheckCircle2, 
@@ -33,9 +34,64 @@ export default function McqExamModule() {
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [submittedScore, setSubmittedScore] = useState<number | null>(null);
 
-  // Randomize Questions on Mount
+  // Fetch Published MCQ Questions from Supabase DB with Realtime Sync
+  const fetchPublishedMcqs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*');
+
+      if (!error && data) {
+        // Strict Visibility Policy: Only Published questions are visible to students
+        const publishedMcqs = data.filter(
+          (q: any) =>
+            (q.status === 'PUBLISHED' || q.status === 'Published') &&
+            (q.type === 'MCQ' || q.round_id === 'round-1' || !q.type)
+        );
+
+        if (publishedMcqs.length > 0) {
+          const mapped: MCQItem[] = publishedMcqs.map((q: any, idx: number) => ({
+            id: q.id,
+            questionNumber: idx + 1,
+            title: q.title,
+            content: q.content_markdown || q.description || '',
+            points: q.points || q.marks || 10,
+            negativePoints: q.negative_points || q.negativeMarks || 0,
+            options: (q.mcq_options || q.mcqOptions || [
+              { id: 'opt-1a', text: 'O(1) Constant time' },
+              { id: 'opt-1b', text: 'O(log N) Logarithmic time' },
+              { id: 'opt-1c', text: 'O(N) Linear time' },
+              { id: 'opt-1d', text: 'O(N log N) Linearithmic time' }
+            ]).map((opt: any) => ({
+              id: opt.id,
+              text: opt.text || opt.option_text || ''
+            }))
+          }));
+          setQuestions(mapped);
+          return;
+        }
+      }
+      setQuestions(getRandomizedQuestions());
+    } catch (err) {
+      console.error('Error fetching published MCQs:', err);
+      setQuestions(getRandomizedQuestions());
+    }
+  };
+
   useEffect(() => {
-    setQuestions(getRandomizedQuestions());
+    fetchPublishedMcqs();
+
+    // Supabase Realtime WebSocket Listener for Admin Question Edits
+    const channel = supabase
+      .channel('realtime_student_mcq_arena')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
+        fetchPublishedMcqs();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Timer Countdown & Auto Submit

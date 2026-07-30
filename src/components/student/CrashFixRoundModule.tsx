@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { CRASH_QUESTIONS_2, CrashQuestionItem } from '@/lib/crashBank';
+import { supabase } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { 
@@ -23,14 +24,72 @@ import { useRouter } from 'next/navigation';
 export default function CrashFixRoundModule() {
   const router = useRouter();
   const [activeQuestionIndex, setActiveQuestionIndex] = useState<number>(0);
+  const [crashQuestions, setCrashQuestions] = useState<CrashQuestionItem[]>(CRASH_QUESTIONS_2);
   
-  const currentQ: CrashQuestionItem = CRASH_QUESTIONS_2[activeQuestionIndex];
+  const currentQ: CrashQuestionItem = crashQuestions[activeQuestionIndex] || crashQuestions[0];
 
   // Code state per question
   const [codeMap, setCodeMap] = useState<Record<string, string>>({
     [CRASH_QUESTIONS_2[0].id]: CRASH_QUESTIONS_2[0].initialCode,
     [CRASH_QUESTIONS_2[1].id]: CRASH_QUESTIONS_2[1].initialCode,
   });
+
+  const fetchPublishedCrashQuestions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*');
+
+      if (!error && data) {
+        // Strict Visibility Policy: Only Published Crash & Fix questions are visible to students
+        const published = data.filter(
+          (q: any) =>
+            (q.status === 'PUBLISHED' || q.status === 'Published') &&
+            (q.type === 'Crash & Fix' || q.round_id === 'round-3')
+        );
+
+        if (published.length > 0) {
+          const mapped: CrashQuestionItem[] = published.map((q: any) => ({
+            id: q.id,
+            title: q.title,
+            difficulty: 'MEDIUM',
+            description: q.content_markdown || q.description || '',
+            crashErrorType: 'Runtime Exception / Recursion Error',
+            initialCode: q.reference_solution || q.referenceSolution || CRASH_QUESTIONS_2[0].initialCode,
+            solutionCode: q.reference_solution || q.referenceSolution || CRASH_QUESTIONS_2[0].solutionCode,
+            expectedPatch: '+ if (!node) return 0;',
+            points: q.points || q.marks || 50,
+            testCases: CRASH_QUESTIONS_2[0].testCases
+          }));
+
+          setCrashQuestions(mapped);
+          const newCodeMap: Record<string, string> = {};
+          mapped.forEach((q) => {
+            newCodeMap[q.id] = q.initialCode;
+          });
+          setCodeMap(newCodeMap);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching published crash questions:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPublishedCrashQuestions();
+
+    // Supabase Realtime WebSocket Listener for Admin Question Edits
+    const channel = supabase
+      .channel('realtime_student_crash_arena')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
+        fetchPublishedCrashQuestions();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Results per question
   const [resultsMap, setResultsMap] = useState<Record<string, EvaluationResult | null>>({

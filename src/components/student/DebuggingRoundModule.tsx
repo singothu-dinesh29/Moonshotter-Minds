@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
-import { MOCK_DEBUG_QUESTION } from '@/lib/supabase';
+import { MOCK_DEBUG_QUESTION, supabase } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { 
@@ -25,9 +25,66 @@ export default function DebuggingRoundModule() {
   const router = useRouter();
 
   // Admin-Defined Question Specifications
-  const questionSpec = MOCK_DEBUG_QUESTION;
-  const [code, setCode] = useState<string>(questionSpec.coding.initial_code);
-  const [language, setLanguage] = useState<string>(questionSpec.coding.language || 'javascript');
+  const [questionSpec, setQuestionSpec] = useState<any>(MOCK_DEBUG_QUESTION);
+  const [code, setCode] = useState<string>(MOCK_DEBUG_QUESTION.coding.initial_code);
+  const [language, setLanguage] = useState<string>(MOCK_DEBUG_QUESTION.coding.language || 'javascript');
+
+  const fetchPublishedDebugQuestion = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*');
+
+      if (!error && data) {
+        // Strict Visibility Policy: Only Published Debugging questions are visible
+        const published = data.filter(
+          (q: any) =>
+            (q.status === 'PUBLISHED' || q.status === 'Published') &&
+            (q.type === 'Debugging' || q.round_id === 'round-2')
+        );
+
+        if (published.length > 0) {
+          const q = published[0];
+          const spec = {
+            id: q.id,
+            title: q.title,
+            content_markdown: q.content_markdown || q.description || '',
+            points: q.points || q.marks || 40,
+            negative_points: q.negative_points || 0,
+            coding: {
+              id: `code-${q.id}`,
+              question_id: q.id,
+              language: (q.language || 'javascript').toLowerCase(),
+              initial_code: q.reference_solution || q.referenceSolution || MOCK_DEBUG_QUESTION.coding.initial_code,
+              solution_code: q.reference_solution || q.referenceSolution || MOCK_DEBUG_QUESTION.coding.solution_code,
+              test_cases: MOCK_DEBUG_QUESTION.coding.test_cases
+            }
+          };
+          setQuestionSpec(spec);
+          setCode(spec.coding.initial_code);
+          setLanguage(spec.coding.language);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching published debug question:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPublishedDebugQuestion();
+
+    // Supabase Realtime WebSocket Listener for Admin Question Edits
+    const channel = supabase
+      .channel('realtime_student_debug_arena')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
+        fetchPublishedDebugQuestion();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Evaluation & Execution State
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);

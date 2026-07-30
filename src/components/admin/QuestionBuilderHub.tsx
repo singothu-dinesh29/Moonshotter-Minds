@@ -218,26 +218,29 @@ export default function QuestionBuilderHub() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && dbQuestions) {
+      if (!error && dbQuestions && dbQuestions.length > 0) {
         const mapped: QuestionRecord[] = dbQuestions.map((q: any) => ({
           id: q.id,
           title: q.title || 'Untitled Question',
-          description: q.content_markdown || '',
-          type: 'MCQ',
-          language: 'SQL',
-          difficulty: 'Easy',
-          round: 'Round 1: Speed MCQ',
-          marks: q.points || 10,
-          negativeMarks: q.negative_points || 0,
-          timeLimitSec: 60,
-          expectedOutput: '',
-          referenceSolution: '',
-          status: (q.status === 'PUBLISHED' ? 'Published' : q.status === 'ARCHIVED' ? 'Archived' : 'Draft') as QuestionStatus,
-          category: 'General Programming',
-          versionHistory: [],
+          description: q.content_markdown || q.description || '',
+          type: q.type || (q.round_id === 'round-2' ? 'Debugging' : q.round_id === 'round-3' ? 'Crash & Fix' : 'MCQ'),
+          language: q.language || 'JavaScript',
+          difficulty: q.difficulty || 'Medium',
+          round: q.round || (q.type === 'Debugging' ? 'Round 2: Algorithmic Debugging' : q.type === 'Crash & Fix' ? 'Round 3: Crash & Fix' : 'Round 1: Speed MCQ'),
+          marks: q.points || q.marks || 10,
+          negativeMarks: q.negative_points || q.negativeMarks || 0,
+          timeLimitSec: q.time_limit_sec || q.timeLimitSec || 60,
+          expectedOutput: q.expected_output || q.expectedOutput || '',
+          referenceSolution: q.reference_solution || q.referenceSolution || '',
+          status: (q.status === 'PUBLISHED' || q.status === 'Published' ? 'Published' : q.status === 'ARCHIVED' || q.status === 'Archived' ? 'Archived' : 'Draft') as QuestionStatus,
+          mcqOptions: q.mcq_options || q.mcqOptions || [],
+          category: q.category || 'General Programming',
+          versionHistory: q.version_history || q.versionHistory || [],
           createdAt: q.created_at || new Date().toISOString()
         }));
         setQuestions(mapped);
+      } else {
+        setQuestions(INITIAL_QUESTIONS);
       }
     } catch (err) {
       console.error('Error fetching questions:', err);
@@ -340,6 +343,40 @@ export default function QuestionBuilderHub() {
       createdAt: editingQuestion ? editingQuestion.createdAt : new Date().toISOString()
     } as QuestionRecord;
 
+    // Persist to Supabase database
+    try {
+      await supabase.from('questions').upsert({
+        id: newRecord.id,
+        title: newRecord.title,
+        content_markdown: newRecord.description,
+        description: newRecord.description,
+        type: newRecord.type,
+        language: newRecord.language,
+        difficulty: newRecord.difficulty,
+        round: newRecord.round,
+        round_id: newRecord.type === 'MCQ' ? 'round-1' : newRecord.type === 'Debugging' ? 'round-2' : 'round-3',
+        points: newRecord.marks,
+        marks: newRecord.marks,
+        negative_points: newRecord.negativeMarks,
+        negativeMarks: newRecord.negativeMarks,
+        time_limit_sec: newRecord.timeLimitSec,
+        timeLimitSec: newRecord.timeLimitSec,
+        expected_output: newRecord.expectedOutput,
+        expectedOutput: newRecord.expectedOutput,
+        reference_solution: newRecord.referenceSolution,
+        referenceSolution: newRecord.referenceSolution,
+        status: newRecord.status === 'Published' ? 'PUBLISHED' : newRecord.status === 'Archived' ? 'ARCHIVED' : 'DRAFT',
+        mcq_options: newRecord.mcqOptions,
+        mcqOptions: newRecord.mcqOptions,
+        category: newRecord.category,
+        version_history: newRecord.versionHistory,
+        versionHistory: newRecord.versionHistory,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('Error saving question to Supabase:', err);
+    }
+
     if (editingQuestion) {
       setQuestions((prev) => prev.map((q) => (q.id === editingQuestion.id ? newRecord : q)));
     } else {
@@ -350,8 +387,21 @@ export default function QuestionBuilderHub() {
   };
 
   // Restore Previous Version
-  const handleRestoreVersion = (qId: string, ver: QuestionVersion) => {
+  const handleRestoreVersion = async (qId: string, ver: QuestionVersion) => {
     if (confirm(`Restore Version #${ver.versionNumber} for this question?`)) {
+      try {
+        await supabase.from('questions').update({
+          title: ver.previousTitle,
+          content_markdown: ver.previousDescription,
+          description: ver.previousDescription,
+          reference_solution: ver.previousSolution,
+          referenceSolution: ver.previousSolution,
+          updated_at: new Date().toISOString()
+        }).eq('id', qId);
+      } catch (err) {
+        console.error('Error restoring question version:', err);
+      }
+
       setQuestions((prev) =>
         prev.map((q) => {
           if (q.id === qId) {
@@ -370,7 +420,7 @@ export default function QuestionBuilderHub() {
     }
   };
 
-  const handleDuplicate = (q: QuestionRecord) => {
+  const handleDuplicate = async (q: QuestionRecord) => {
     const duplicated: QuestionRecord = {
       ...q,
       id: `q-${Date.now()}`,
@@ -379,11 +429,40 @@ export default function QuestionBuilderHub() {
       versionHistory: [],
       createdAt: new Date().toISOString()
     };
+
+    try {
+      await supabase.from('questions').upsert({
+        id: duplicated.id,
+        title: duplicated.title,
+        content_markdown: duplicated.description,
+        description: duplicated.description,
+        type: duplicated.type,
+        language: duplicated.language,
+        difficulty: duplicated.difficulty,
+        round: duplicated.round,
+        round_id: duplicated.type === 'MCQ' ? 'round-1' : duplicated.type === 'Debugging' ? 'round-2' : 'round-3',
+        points: duplicated.marks,
+        marks: duplicated.marks,
+        negative_points: duplicated.negativeMarks,
+        status: 'DRAFT',
+        mcq_options: duplicated.mcqOptions,
+        category: duplicated.category,
+        updated_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('Error duplicating question:', err);
+    }
+
     setQuestions([duplicated, ...questions]);
   };
 
-  const handleDelete = (id: string) => {
-    setDeleteConfirmId(id);
+  const handleDelete = async (id: string) => {
+    try {
+      await supabase.from('questions').delete().eq('id', id);
+    } catch (err) {
+      console.error('Error deleting question:', err);
+    }
+    setQuestions((prev) => prev.filter((q) => q.id !== id));
   };
 
   return (

@@ -5,7 +5,51 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { Zap, Code2, Terminal, Clock, ShieldCheck, Award, ArrowRight, HelpCircle, AlertOctagon } from 'lucide-react';
 
+import { supabase } from '@/lib/supabase';
+
 export default function RoundsSection() {
+  const [questionCounts, setQuestionCounts] = React.useState({ mcq: 15, debug: 2, crash: 2 });
+
+  const fetchPublishedQuestionCounts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('*');
+
+      if (!error && data) {
+        // Strict Visibility Policy: Only PUBLISHED questions are counted and shown to students
+        const published = data.filter((q: any) => q.status === 'PUBLISHED' || q.status === 'Published');
+        const mcqs = published.filter((q: any) => q.type === 'MCQ' || q.round_id === 'round-1');
+        const debugs = published.filter((q: any) => q.type === 'Debugging' || q.round_id === 'round-2');
+        const crashes = published.filter((q: any) => q.type === 'Crash & Fix' || q.round_id === 'round-3');
+
+        setQuestionCounts({
+          mcq: mcqs.length > 0 ? mcqs.length : 15,
+          debug: debugs.length > 0 ? debugs.length : 2,
+          crash: crashes.length > 0 ? crashes.length : 2
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching published question counts:', err);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchPublishedQuestionCounts();
+
+    // Supabase Realtime WebSockets subscription for live question updates
+    const channel = supabase
+      .channel('realtime_student_rounds')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
+        fetchPublishedQuestionCounts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const ROUNDS = [
     {
       id: 'round-1',
@@ -13,7 +57,7 @@ export default function RoundsSection() {
       title: 'Speed MCQ Challenge',
       subtitle: 'Data Structures, PostgreSQL, System Design & HTTP/2',
       specs: [
-        '15 Single Choice Questions',
+        `${questionCounts.mcq} Published Single Choice Questions`,
         'Strict 15-Minute Countdown Timer',
         'Question Navigation Palette with Review Flags',
         '+10 Points / -2 Negative Marking',
@@ -33,7 +77,7 @@ export default function RoundsSection() {
       title: 'Algorithmic Debugging Challenge',
       subtitle: 'Fix Logic Flaws, Memory Leaks & Edge Case Bugs',
       specs: [
-        'Fix 2 Buggy Code Programs',
+        `Fix ${questionCounts.debug} Published Buggy Code Programs`,
         'Embedded Monaco Code Editor',
         'Copy, Paste & Right-Click Disabled',
         'Auto-Saving Draft Engine',
@@ -53,7 +97,7 @@ export default function RoundsSection() {
       title: 'Crash & Fix Engineering',
       subtitle: 'Medium-Level Buggy Programs & Runtime Exceptions',
       specs: [
-        'Solve Medium-Level Buggy Programs',
+        `Solve ${questionCounts.crash} Published Buggy Programs`,
         'Fix Recursion Stack Overflows & Async Crashes',
         'Embedded Monaco Code Editor',
         'High-Pressure Patch Validation',
