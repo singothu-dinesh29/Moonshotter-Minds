@@ -33,7 +33,11 @@ import {
   Layers,
   Send,
   Loader2,
-  Save
+  Save,
+  ChevronUp,
+  ChevronDown,
+  Image,
+  AlertCircle
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import MonacoPlayground from '@/components/shared/MonacoPlayground';
@@ -68,7 +72,8 @@ export interface QuestionRecord {
   expectedOutput: string;
   referenceSolution: string;
   status: QuestionStatus;
-  mcqOptions?: { id: string; text: string; isCorrect: boolean }[];
+  imageUrl?: string;
+  mcqOptions?: { id: string; text: string; isCorrect: boolean; imageUrl?: string }[];
   category: string;
   versionHistory: QuestionVersion[];
   createdAt: string;
@@ -186,6 +191,9 @@ export default function QuestionBuilderHub() {
   // Exact Student Preview State
   const [selectedMcqOption, setSelectedMcqOption] = useState<string>('');
   const [studentCode, setStudentCode] = useState<string>('');
+
+  // Form State Validation
+  const [formValidationError, setFormValidationError] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<Partial<QuestionRecord>>({
@@ -337,33 +345,114 @@ export default function QuestionBuilderHub() {
     }));
   };
 
-  const handleMcqOptionChange = (idx: number, text: string) => {
-    const currentOptions = (formData.mcqOptions && formData.mcqOptions.length === 4) ? [...formData.mcqOptions] : [
+  // MCQ Options Management Handlers (Dynamic 2-8 options with Reorder & Image Support)
+  const getMcqOptions = () => {
+    if (formData.mcqOptions && formData.mcqOptions.length >= 2) {
+      return formData.mcqOptions;
+    }
+    return [
       { id: 'opt-1', text: '', isCorrect: true },
       { id: 'opt-2', text: '', isCorrect: false },
       { id: 'opt-3', text: '', isCorrect: false },
       { id: 'opt-4', text: '', isCorrect: false },
     ];
-    currentOptions[idx] = { ...currentOptions[idx], text };
-    setFormData({ ...formData, mcqOptions: currentOptions });
+  };
+
+  const handleAddMcqOption = () => {
+    const options = getMcqOptions();
+    if (options.length >= 8) {
+      setFormValidationError('Maximum 8 options allowed per MCQ question.');
+      return;
+    }
+    const newOpt = { id: `opt-${Date.now()}`, text: '', isCorrect: false };
+    setFormData({ ...formData, mcqOptions: [...options, newOpt] });
+    setFormValidationError(null);
+  };
+
+  const handleDeleteMcqOption = (idx: number) => {
+    const options = getMcqOptions();
+    if (options.length <= 2) {
+      setFormValidationError('Minimum 2 options required per MCQ question.');
+      return;
+    }
+    const wasCorrect = options[idx]?.isCorrect;
+    const nextOptions = options.filter((_, i) => i !== idx);
+    if (wasCorrect && nextOptions.length > 0) {
+      nextOptions[0] = { ...nextOptions[0], isCorrect: true };
+    }
+    setFormData({ ...formData, mcqOptions: nextOptions });
+    setFormValidationError(null);
+  };
+
+  const handleMoveMcqOptionUp = (idx: number) => {
+    if (idx <= 0) return;
+    const options = [...getMcqOptions()];
+    const temp = options[idx];
+    options[idx] = options[idx - 1];
+    options[idx - 1] = temp;
+    setFormData({ ...formData, mcqOptions: options });
+  };
+
+  const handleMoveMcqOptionDown = (idx: number) => {
+    const options = [...getMcqOptions()];
+    if (idx >= options.length - 1) return;
+    const temp = options[idx];
+    options[idx] = options[idx + 1];
+    options[idx + 1] = temp;
+    setFormData({ ...formData, mcqOptions: options });
+  };
+
+  const handleMcqOptionChange = (idx: number, text: string) => {
+    const options = [...getMcqOptions()];
+    options[idx] = { ...options[idx], text };
+    setFormData({ ...formData, mcqOptions: options });
+    setFormValidationError(null);
+  };
+
+  const handleMcqOptionImageChange = (idx: number, imageUrl: string) => {
+    const options = [...getMcqOptions()];
+    options[idx] = { ...options[idx], imageUrl };
+    setFormData({ ...formData, mcqOptions: options });
   };
 
   const handleMcqCorrectSelect = (idx: number) => {
-    const currentOptions = ((formData.mcqOptions && formData.mcqOptions.length === 4) ? formData.mcqOptions : [
-      { id: 'opt-1', text: '', isCorrect: true },
-      { id: 'opt-2', text: '', isCorrect: false },
-      { id: 'opt-3', text: '', isCorrect: false },
-      { id: 'opt-4', text: '', isCorrect: false },
-    ]).map((opt, i) => ({
+    const options = getMcqOptions().map((opt, i) => ({
       ...opt,
       isCorrect: i === idx
     }));
-    setFormData({ ...formData, mcqOptions: currentOptions });
+    setFormData({ ...formData, mcqOptions: options });
+    setFormValidationError(null);
   };
 
   // Save Question & Store Version History
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // MCQ Validation Check
+    if (formData.type === 'MCQ') {
+      const options = getMcqOptions();
+      if (options.length < 2) {
+        setFormValidationError('Minimum 2 options required for an MCQ question.');
+        return;
+      }
+      if (options.length > 8) {
+        setFormValidationError('Maximum 8 options allowed for an MCQ question.');
+        return;
+      }
+      const hasCorrect = options.some((opt) => opt.isCorrect);
+      if (!hasCorrect) {
+        setFormValidationError('Exactly one correct answer must be selected for MCQ question.');
+        return;
+      }
+      if (formData.status === 'Published') {
+        const hasEmptyText = options.some((opt) => !opt.text.trim());
+        if (hasEmptyText) {
+          setFormValidationError('All MCQ option text fields must be filled before publishing.');
+          return;
+        }
+      }
+    }
+    setFormValidationError(null);
 
     let updatedHistory: QuestionVersion[] = editingQuestion ? [...editingQuestion.versionHistory] : [];
 
@@ -951,72 +1040,173 @@ export default function QuestionBuilderHub() {
                 </div>
               </div>
 
+              {/* VALIDATION ERROR BANNER */}
+              {formValidationError && (
+                <div className="p-3 bg-rose-500/15 border border-rose-500/40 rounded-xl text-rose-300 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+                  <span>{formValidationError}</span>
+                </div>
+              )}
+
               {/* DYNAMIC FORM SECTION: BASED ON QUESTION TYPE */}
 
               {/* 1. MCQ SPECIFIC FIELDS */}
               {formData.type === 'MCQ' && (
                 <div className="space-y-4 pt-1">
-                  <div className="space-y-1">
-                    <label className="text-slate-300 font-bold flex items-center justify-between">
-                      <span>Question Description Scenario</span>
-                      <span className="text-[10px] text-slate-500 font-mono">Markdown Supported</span>
-                    </label>
-                    <textarea
-                      rows={3}
-                      required
-                      placeholder="Enter MCQ problem statement or code snippet scenario..."
-                      value={formData.description || ''}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono focus:border-indigo-500 focus:outline-none"
-                    />
-                  </div>
-
-                  {/* 4 MCQ CHOICE OPTIONS WITH CORRECT ANSWER SELECTION */}
-                  <div className="space-y-2.5 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-indigo-400 text-xs uppercase tracking-wider">MCQ Choice Options (4 Choices)</span>
-                      <span className="text-[10px] text-slate-400 font-mono">Select radio button for Correct Answer</span>
+                  
+                  {/* QUESTION STATEMENT & OPTIONAL IMAGE UPLOAD */}
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-slate-300 font-bold flex items-center justify-between">
+                        <span>Question Statement</span>
+                        <span className="text-[10px] text-slate-500 font-mono">* Required (Markdown Supported)</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        required
+                        placeholder="Enter MCQ question statement or scenario..."
+                        value={formData.description || ''}
+                        onChange={(e) => {
+                          setFormData({ ...formData, description: e.target.value });
+                          setFormValidationError(null);
+                        }}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono focus:border-indigo-500 focus:outline-none"
+                      />
                     </div>
 
-                    {['A', 'B', 'C', 'D'].map((letter, idx) => {
-                      const options = (formData.mcqOptions && formData.mcqOptions.length === 4) ? formData.mcqOptions : [
-                        { id: 'opt-1', text: '', isCorrect: true },
-                        { id: 'opt-2', text: '', isCorrect: false },
-                        { id: 'opt-3', text: '', isCorrect: false },
-                        { id: 'opt-4', text: '', isCorrect: false },
-                      ];
-                      const opt = options[idx] || { id: `opt-${idx+1}`, text: '', isCorrect: idx === 0 };
-
-                      return (
-                        <div key={idx} className="flex items-center gap-3 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
-                          <span className={`h-7 w-7 rounded-lg font-mono font-bold text-xs flex items-center justify-center shrink-0 ${opt.isCorrect ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`}>
-                            {letter}
-                          </span>
-                          <input
-                            type="text"
-                            required
-                            placeholder={`Option ${letter} Choice Text...`}
-                            value={opt.text}
-                            onChange={(e) => handleMcqOptionChange(idx, e.target.value)}
-                            className="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
-                          />
-                          <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer font-mono px-2 py-1 rounded bg-slate-950 border border-slate-800 hover:border-emerald-500/50">
-                            <input
-                              type="radio"
-                              name="mcqCorrectOption"
-                              checked={opt.isCorrect}
-                              onChange={() => handleMcqCorrectSelect(idx)}
-                              className="accent-emerald-500 h-3.5 w-3.5"
-                            />
-                            <span className={opt.isCorrect ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
-                              {opt.isCorrect ? 'Correct' : 'Mark Correct'}
-                            </span>
-                          </label>
-                        </div>
-                      );
-                    })}
+                    {/* OPTIONAL QUESTION IMAGE UPLOAD / URL */}
+                    <div className="space-y-1 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                      <label className="text-slate-300 font-bold flex items-center gap-1 text-[11px]">
+                        <Image className="h-3.5 w-3.5 text-indigo-400" /> Optional Question Diagram / Image URL
+                      </label>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="url"
+                          placeholder="https://example.com/diagram.png"
+                          value={formData.imageUrl || ''}
+                          onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                          className="flex-1 bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white focus:border-indigo-500 focus:outline-none font-mono"
+                        />
+                        {formData.imageUrl && (
+                          <div className="h-8 w-8 rounded-lg overflow-hidden border border-slate-700 shrink-0 bg-slate-900">
+                            <img src={formData.imageUrl} alt="Question Preview" className="h-full w-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
+                  {/* DYNAMIC MCQ CHOICE OPTIONS MANAGEMENT */}
+                  <div className="space-y-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-indigo-400 text-xs uppercase tracking-wider block">MCQ Options (2 to 8 Choices)</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Select radio button for Correct Answer</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddMcqOption}
+                        disabled={getMcqOptions().length >= 8}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-all shadow"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Add Option
+                      </button>
+                    </div>
+
+                    {/* RENDER DYNAMIC OPTIONS */}
+                    <div className="space-y-2.5">
+                      {getMcqOptions().map((opt, idx) => {
+                        const letter = String.fromCharCode(65 + idx); // A, B, C, D, E, F, G, H
+                        const optionsList = getMcqOptions();
+
+                        return (
+                          <div key={opt.id || idx} className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div className="flex items-center gap-2">
+                              {/* Option Letter Badge */}
+                              <span className={`h-7 w-7 rounded-lg font-mono font-bold text-xs flex items-center justify-center shrink-0 ${opt.isCorrect ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20' : 'bg-slate-800 text-slate-300'}`}>
+                                {letter}
+                              </span>
+
+                              {/* Option Text Input */}
+                              <input
+                                type="text"
+                                required
+                                placeholder={`Option ${letter} Choice Text...`}
+                                value={opt.text}
+                                onChange={(e) => handleMcqOptionChange(idx, e.target.value)}
+                                className="flex-1 bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                              />
+
+                              {/* Radio Select for Correct Answer */}
+                              <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer font-mono px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500/50 transition-all">
+                                <input
+                                  type="radio"
+                                  name="mcqCorrectOption"
+                                  checked={opt.isCorrect}
+                                  onChange={() => handleMcqCorrectSelect(idx)}
+                                  className="accent-emerald-500 h-3.5 w-3.5 cursor-pointer"
+                                />
+                                <span className={opt.isCorrect ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                                  {opt.isCorrect ? 'Correct' : 'Mark Correct'}
+                                </span>
+                              </label>
+
+                              {/* Option Reordering Buttons */}
+                              <div className="flex items-center gap-0.5 bg-slate-950 border border-slate-800 rounded-lg p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveMcqOptionUp(idx)}
+                                  disabled={idx === 0}
+                                  title="Move Option Up"
+                                  className="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveMcqOptionDown(idx)}
+                                  disabled={idx === optionsList.length - 1}
+                                  title="Move Option Down"
+                                  className="p-1 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+
+                              {/* Option Delete Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMcqOption(idx)}
+                                disabled={optionsList.length <= 2}
+                                title="Delete Option"
+                                className="p-1.5 text-slate-500 hover:text-rose-400 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-rose-500/10 transition-all"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+
+                            {/* Optional Option Image Input */}
+                            <div className="flex items-center gap-2 pl-9">
+                              <input
+                                type="url"
+                                placeholder={`Optional Option ${letter} Image URL...`}
+                                value={opt.imageUrl || ''}
+                                onChange={(e) => handleMcqOptionImageChange(idx, e.target.value)}
+                                className="flex-1 bg-slate-950/70 border border-slate-800/80 rounded-md p-1.5 text-[11px] text-slate-300 font-mono focus:border-indigo-500 focus:outline-none"
+                              />
+                              {opt.imageUrl && (
+                                <div className="h-6 w-6 rounded overflow-hidden border border-slate-700 shrink-0 bg-slate-900">
+                                  <img src={opt.imageUrl} alt={`Option ${letter}`} className="h-full w-full object-cover" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* REFERENCE SOLUTION / MODEL */}
                   <div className="space-y-1">
                     <label className="text-slate-300 font-bold">Reference Solution / Answer Model</label>
                     <textarea
