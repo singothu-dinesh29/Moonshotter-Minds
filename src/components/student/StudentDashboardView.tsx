@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { MOCK_EVENT, MOCK_ROUNDS, MOCK_INITIAL_LEADERBOARD } from '@/lib/supabase';
+import { MOCK_EVENT, MOCK_ROUNDS, MOCK_INITIAL_LEADERBOARD, supabase } from '@/lib/supabase';
 import { formatSeconds } from '@/lib/utils';
 import { 
   User, 
@@ -24,7 +24,8 @@ import {
   Trophy, 
   ExternalLink,
   Flame,
-  Bell
+  Bell,
+  ArrowRight
 } from 'lucide-react';
 
 export default function StudentDashboardView() {
@@ -33,6 +34,155 @@ export default function StudentDashboardView() {
 
   // Pre-exam countdown timer (e.g. 12 minutes countdown to live round start)
   const [lobbyCountdown, setLobbyCountdown] = useState<number>(12 * 60);
+
+  // Live Dynamic Round Specifications State loaded from Supabase
+  const [roundsData, setRoundsData] = useState<any[]>([
+    {
+      id: 'round-1',
+      number: 'ROUND 01',
+      title: 'Speed MCQ Challenge',
+      type: 'MCQ',
+      publishedQuestionsCount: 15,
+      duration_minutes: 15,
+      totalMarks: 30,
+      negativeMarking: '-2 PTS',
+      difficulty: 'Easy',
+      status: 'Available',
+      instructions: 'Select the optimal answer for core CS fundamentals, algorithms, and system design questions.',
+      href: '/arena/mcq'
+    },
+    {
+      id: 'round-2',
+      number: 'ROUND 02',
+      title: 'Algorithmic Debugging Challenge',
+      type: 'Debugging',
+      publishedQuestionsCount: 2,
+      duration_minutes: 15,
+      totalMarks: 40,
+      negativeMarking: '0 PTS',
+      difficulty: 'Medium',
+      status: 'Available',
+      instructions: 'Identify logic flaws, edge-case bugs, and off-by-one errors in the code snippet. Make all test cases pass!',
+      href: '/arena/debugging'
+    },
+    {
+      id: 'round-3',
+      number: 'ROUND 03',
+      title: 'Crash & Fix Engineering',
+      type: 'Crash & Fix',
+      publishedQuestionsCount: 2,
+      duration_minutes: 15,
+      totalMarks: 50,
+      negativeMarking: '0 PTS',
+      difficulty: 'Hard',
+      status: 'Available',
+      instructions: 'The target module is throwing an unhandled runtime Exception or infinite recursion crash. Patch the code under time pressure!',
+      href: '/arena/crash-fix'
+    }
+  ]);
+
+  const fetchLiveRoundsFromSupabase = async () => {
+    try {
+      const { data: dbQuestions } = await supabase.from('questions').select('*');
+      const { data: dbRounds } = await supabase.from('rounds').select('*');
+
+      const allQuestions = dbQuestions || [];
+      const publishedQs = allQuestions.filter((q: any) => q.status === 'PUBLISHED' || q.status === 'Published');
+
+      // Round 01: MCQ
+      const r1Questions = publishedQs.filter((q: any) => q.type === 'MCQ' || q.round_id === 'round-1' || !q.type);
+      const r1TotalMarks = r1Questions.reduce((sum: number, q: any) => sum + (q.points || q.marks || 10), 0) || 30;
+      const r1Neg = r1Questions[0]?.negative_points ?? r1Questions[0]?.negativeMarks ?? 2;
+      const r1RoundDb = dbRounds?.find((r: any) => r.round_type === 'MCQ' || r.sequence_order === 1);
+      const r1Duration = r1RoundDb?.duration_minutes || 15;
+      const r1Status = r1RoundDb?.status || 'Available';
+      const r1Diff = r1Questions[0]?.difficulty || 'Easy';
+
+      // Round 02: Debugging
+      const r2Questions = publishedQs.filter((q: any) => q.type === 'Debugging' || q.round_id === 'round-2');
+      const r2TotalMarks = r2Questions.reduce((sum: number, q: any) => sum + (q.points || q.marks || 40), 0) || 40;
+      const r2Neg = r2Questions[0]?.negative_points ?? r2Questions[0]?.negativeMarks ?? 0;
+      const r2RoundDb = dbRounds?.find((r: any) => r.round_type === 'DEBUGGING' || r.sequence_order === 2);
+      const r2Duration = r2RoundDb?.duration_minutes || 15;
+      const r2Status = r2RoundDb?.status || 'Available';
+      const r2Diff = r2Questions[0]?.difficulty || 'Medium';
+
+      // Round 03: Crash & Fix
+      const r3Questions = publishedQs.filter((q: any) => q.type === 'Crash & Fix' || q.round_id === 'round-3');
+      const r3TotalMarks = r3Questions.reduce((sum: number, q: any) => sum + (q.points || q.marks || 50), 0) || 50;
+      const r3Neg = r3Questions[0]?.negative_points ?? r3Questions[0]?.negativeMarks ?? 0;
+      const r3RoundDb = dbRounds?.find((r: any) => r.round_type === 'CRASH_FIX' || r.sequence_order === 3);
+      const r3Duration = r3RoundDb?.duration_minutes || 15;
+      const r3Status = r3RoundDb?.status || 'Available';
+      const r3Diff = r3Questions[0]?.difficulty || 'Hard';
+
+      setRoundsData([
+        {
+          id: 'round-1',
+          number: 'ROUND 01',
+          title: r1RoundDb?.title || 'Speed MCQ Challenge',
+          type: 'MCQ',
+          publishedQuestionsCount: r1Questions.length || 15,
+          duration_minutes: r1Duration,
+          totalMarks: r1TotalMarks,
+          negativeMarking: r1Neg > 0 ? `-${r1Neg} PTS` : '0 PTS',
+          difficulty: r1Diff,
+          status: r1Status,
+          instructions: r1RoundDb?.instructions || 'Select the optimal answer for core CS fundamentals, algorithms, and system design questions.',
+          href: '/arena/mcq'
+        },
+        {
+          id: 'round-2',
+          number: 'ROUND 02',
+          title: r2RoundDb?.title || 'Algorithmic Debugging Challenge',
+          type: 'Debugging',
+          publishedQuestionsCount: r2Questions.length || 2,
+          duration_minutes: r2Duration,
+          totalMarks: r2TotalMarks,
+          negativeMarking: r2Neg > 0 ? `-${r2Neg} PTS` : '0 PTS',
+          difficulty: r2Diff,
+          status: r2Status,
+          instructions: r2RoundDb?.instructions || 'Identify logic flaws, edge-case bugs, and off-by-one errors in the code snippet. Make all test cases pass!',
+          href: '/arena/debugging'
+        },
+        {
+          id: 'round-3',
+          number: 'ROUND 03',
+          title: r3RoundDb?.title || 'Crash & Fix Engineering',
+          type: 'Crash & Fix',
+          publishedQuestionsCount: r3Questions.length || 2,
+          duration_minutes: r3Duration,
+          totalMarks: r3TotalMarks,
+          negativeMarking: r3Neg > 0 ? `-${r3Neg} PTS` : '0 PTS',
+          difficulty: r3Diff,
+          status: r3Status,
+          instructions: r3RoundDb?.instructions || 'The target module is throwing an unhandled runtime Exception or infinite recursion crash. Patch the code under time pressure!',
+          href: '/arena/crash-fix'
+        }
+      ]);
+    } catch (err) {
+      console.error('Error fetching live rounds:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveRoundsFromSupabase();
+
+    const qChannel = supabase
+      .channel('realtime_student_dashboard_q')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => fetchLiveRoundsFromSupabase())
+      .subscribe();
+
+    const rChannel = supabase
+      .channel('realtime_student_dashboard_r')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rounds' }, () => fetchLiveRoundsFromSupabase())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(qChannel);
+      supabase.removeChannel(rChannel);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -236,19 +386,68 @@ export default function StudentDashboardView() {
       {/* TAB 3: ROUND SPECS */}
       {activeTab === 'ROUNDS' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {MOCK_ROUNDS.map((r, idx) => (
-            <div key={r.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-              <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
-                {idx === 0 && <Zap className="h-5 w-5 text-indigo-400" />}
-                {idx === 1 && <Code2 className="h-5 w-5 text-cyan-400" />}
-                {idx === 2 && <Terminal className="h-5 w-5 text-purple-400" />}
-                <h4 className="font-bold text-base text-white">{r.title}</h4>
+          {roundsData.map((r, idx) => (
+            <div key={r.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5 flex flex-col justify-between shadow-xl relative">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-3">
+                    {idx === 0 && <Zap className="h-5 w-5 text-indigo-400" />}
+                    {idx === 1 && <Code2 className="h-5 w-5 text-cyan-400" />}
+                    {idx === 2 && <Terminal className="h-5 w-5 text-purple-400" />}
+                    <div>
+                      <h4 className="font-bold text-base text-white">{r.title}</h4>
+                      <span className="text-[10px] font-mono text-slate-400 font-semibold">{r.number} • {r.type}</span>
+                    </div>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                    r.status === 'Available' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                    r.status === 'Upcoming' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                    r.status === 'Completed' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' :
+                    'bg-slate-800 text-slate-400 border-slate-700'
+                  }`}>
+                    {r.status}
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed font-sans">{r.instructions}</p>
+
+                {/* LIVE DYNAMIC SUPABASE SPECS GRID */}
+                <div className="grid grid-cols-2 gap-3 text-xs font-mono bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">QUESTIONS</span>
+                    <span className="text-white font-bold">{r.publishedQuestionsCount} Published</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">TIME LIMIT</span>
+                    <span className="text-amber-400 font-bold">{r.duration_minutes} Mins</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">TOTAL MARKS</span>
+                    <span className="text-emerald-400 font-bold">{r.totalMarks} PTS</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">NEGATIVE MARK</span>
+                    <span className="text-rose-400 font-bold">{r.negativeMarking}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">DIFFICULTY</span>
+                    <span className="text-cyan-400 font-bold">{r.difficulty}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">ROUND STATUS</span>
+                    <span className="text-indigo-400 font-bold">{r.status}</span>
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">{r.instructions}</p>
-              <div className="flex justify-between font-mono text-xs text-slate-300 border-t border-slate-800/80 pt-3">
-                <span>Duration: {r.duration_minutes} Mins</span>
-                <span className="text-indigo-400 font-bold">Weight: {r.total_weightage}%</span>
-              </div>
+
+              {/* DYNAMIC LAUNCH ARENA BUTTON */}
+              <Link
+                href={r.href}
+                className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all mt-4"
+              >
+                <span>Launch {r.number} Arena</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           ))}
         </div>
