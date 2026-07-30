@@ -238,8 +238,19 @@ export default function DebuggingRoundModule() {
         antiCheatFlags: 0
       });
 
+      let activeStudentId = 'candidate-2026-cs-942';
+      if (typeof window !== 'undefined') {
+        const storedUserStr = sessionStorage.getItem('symphosium_user') || localStorage.getItem('symphosium_user');
+        if (storedUserStr) {
+          try {
+            const parsed = JSON.parse(storedUserStr);
+            if (parsed && parsed.id) activeStudentId = parsed.id;
+          } catch (e) {}
+        }
+      }
+
       await saveStudentCodeSubmission({
-        studentId: 'candidate-2026-cs-942',
+        studentId: activeStudentId,
         questionId: questionSpec.id,
         round: 'ROUND_02_DEBUGGING',
         code,

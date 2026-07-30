@@ -225,6 +225,17 @@ export default function CrashFixRoundModule() {
       let totalCrashScore = 0;
       let totalCrashMax = 0;
 
+      let activeStudentId = 'candidate-2026-cs-942';
+      if (typeof window !== 'undefined') {
+        const storedUserStr = sessionStorage.getItem('symphosium_user') || localStorage.getItem('symphosium_user');
+        if (storedUserStr) {
+          try {
+            const parsed = JSON.parse(storedUserStr);
+            if (parsed && parsed.id) activeStudentId = parsed.id;
+          } catch (e) {}
+        }
+      }
+
       for (const q of crashQuestions) {
         const activeCode = codeMap[q.id] || q.initialCode;
         const res = evaluateCodeSubmission(activeCode, q.testCases, q.points);
@@ -232,7 +243,7 @@ export default function CrashFixRoundModule() {
         totalCrashMax += (q.points || 50);
 
         await saveStudentCodeSubmission({
-          studentId: 'candidate-2026-cs-942',
+          studentId: activeStudentId,
           questionId: q.id,
           round: 'ROUND_03_CRASH_FIX',
           code: activeCode,

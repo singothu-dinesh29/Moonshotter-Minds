@@ -96,7 +96,7 @@ export function saveDynamicScorecard(update: Partial<DynamicScorecard>): Dynamic
   };
   
   next.totalScore = Math.max(0, (next.mcqScore || 0) + (next.debuggingScore || 0) + (next.crashFixScore || 0));
-  next.totalMaxPoints = (next.mcqMaxPoints || 0) + (next.debuggingMaxPoints || 0) + (next.crashFixScore || 0) > 0 
+  next.totalMaxPoints = (next.mcqMaxPoints || 0) + (next.debuggingMaxPoints || 0) + (next.crashFixMaxPoints || 0) > 0 
     ? (next.mcqMaxPoints || 0) + (next.debuggingMaxPoints || 0) + (next.crashFixMaxPoints || 0) 
     : next.totalMaxPoints;
 

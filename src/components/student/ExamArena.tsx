@@ -1,17 +1,19 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Editor from '@monaco-editor/react';
 import { 
   MOCK_EVENT, 
   MOCK_ROUNDS,
-  supabase 
+  supabase,
+  saveStudentCodeSubmission
 } from '@/lib/supabase';
 import { AntiCheatMonitor, AntiCheatIncident } from '@/lib/anticheat';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { getActiveExamSession, getRemainingExamSeconds, startExamSession } from '@/lib/examSession';
-import { isQuestionPublishedForRound } from '@/lib/scoringEngine';
+import { isQuestionPublishedForRound, saveDynamicScorecard, syncScorecardToSupabase } from '@/lib/scoringEngine';
 import { 
   Play, 
   CheckCircle, 
@@ -25,11 +27,13 @@ import {
   FileText,
   Send,
   Lock,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ExamArena() {
+  const router = useRouter();
   const [activeRoundIndex, setActiveRoundIndex] = useState<number>(0);
   
   // Timer State (45 mins countdown)
@@ -80,7 +84,9 @@ export default function ExamArena() {
             negative_points: q.negative_points || q.negativeMarks || 0,
             options: opts.map((o: any) => ({
               id: o.id || `opt-${o.text || o.option_text}`,
-              option_text: o.text || o.option_text || ''
+              text: o.text || o.option_text || '',
+              option_text: o.text || o.option_text || '',
+              isCorrect: !!o.is_correct || !!o.isCorrect
             }))
           };
         });
@@ -212,6 +218,134 @@ export default function ExamArena() {
     setDebugResult(res);
   };
 
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const handleFinishAndSubmit = async () => {
+    if (!confirm('Are you sure you want to finish and submit your entire examination attempt?')) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setIsExamActive(false);
+
+      // Get authenticated user ID
+      let studentId = 'candidate-2026-cs-942';
+      if (typeof window !== 'undefined') {
+        const storedUserStr = sessionStorage.getItem('symphosium_user') || localStorage.getItem('symphosium_user');
+        if (storedUserStr) {
+          try {
+            const parsed = JSON.parse(storedUserStr);
+            if (parsed && parsed.id) studentId = parsed.id;
+          } catch (e) {}
+        }
+      }
+
+      // 1. Evaluate MCQ Round
+      let mcqScore = 0;
+      let mcqMaxPts = 0;
+      let correctCount = 0;
+      let wrongCount = 0;
+      let skippedCount = 0;
+      let posMarksGained = 0;
+      let negMarksDeducted = 0;
+
+      mcqQuestions.forEach((q) => {
+        const pos = typeof q.points === 'number' ? q.points : 10;
+        const rawNeg = typeof q.negative_points === 'number' ? q.negative_points : 0;
+        const neg = rawNeg > 0 ? -rawNeg : rawNeg;
+
+        mcqMaxPts += pos;
+        const selectedOptId = mcqAnswers[q.id];
+
+        if (!selectedOptId) {
+          skippedCount++;
+        } else {
+          const matched = q.options?.find((o: any) => o.id === selectedOptId);
+          if (matched && matched.isCorrect) {
+            correctCount++;
+            posMarksGained += pos;
+            mcqScore += pos;
+          } else {
+            wrongCount++;
+            negMarksDeducted += Math.abs(neg);
+            mcqScore += neg;
+          }
+        }
+      });
+      mcqScore = Math.max(0, mcqScore);
+
+      // 2. Evaluate Debugging Round
+      let debugScore = 0;
+      let debugMaxPts = 0;
+      if (debugQuestion) {
+        debugMaxPts = debugQuestion.points || 40;
+        const activeDebugCode = debugCode || debugQuestion.coding?.initial_code || '';
+        const debugEval = evaluateCodeSubmission(activeDebugCode, debugQuestion.coding?.test_cases || [], debugMaxPts);
+        debugScore = debugEval.score || 0;
+
+        await saveStudentCodeSubmission({
+          studentId,
+          questionId: debugQuestion.id,
+          round: 'ROUND_02_DEBUGGING',
+          code: activeDebugCode,
+          language: 'python',
+          compilationStatus: debugEval.status === 'PASSED' ? 'PASSED' : 'FAILED',
+          executionResult: debugEval,
+          submittedAt: new Date().toISOString()
+        });
+      }
+
+      // 3. Evaluate Crash & Fix Round
+      let crashScore = 0;
+      let crashMaxPts = 0;
+      if (crashQuestion) {
+        crashMaxPts = crashQuestion.points || 50;
+        const activeCrashCode = crashCode || crashQuestion.coding?.initial_code || '';
+        const crashEval = evaluateCodeSubmission(activeCrashCode, crashQuestion.coding?.test_cases || [], crashMaxPts);
+        crashScore = crashEval.score || 0;
+
+        await saveStudentCodeSubmission({
+          studentId,
+          questionId: crashQuestion.id,
+          round: 'ROUND_03_CRASH_FIX',
+          code: activeCrashCode,
+          language: 'python',
+          compilationStatus: crashEval.status === 'PASSED' ? 'PASSED' : 'FAILED',
+          executionResult: crashEval,
+          submittedAt: new Date().toISOString()
+        });
+      }
+
+      const completionSec = Math.max(1, (45 * 60) - secondsRemaining);
+
+      // 4. Save dynamic scorecard locally & sync to Supabase
+      const sc = saveDynamicScorecard({
+        mcqScore,
+        mcqMaxPoints: mcqMaxPts,
+        debuggingScore: debugScore,
+        debuggingMaxPoints: debugMaxPts,
+        crashFixScore: crashScore,
+        crashFixMaxPoints: crashMaxPts,
+        correctAnswers: correctCount,
+        wrongAnswers: wrongCount,
+        skippedQuestions: skippedCount,
+        positiveMarks: posMarksGained,
+        negativeMarks: negMarksDeducted,
+        completionTimeSeconds: completionSec,
+        antiCheatFlags: incidents.length
+      });
+
+      await syncScorecardToSupabase(sc, studentId);
+
+      router.push('/summary');
+    } catch (err: any) {
+      console.error('Error submitting examination attempt:', err);
+      setIsSubmitting(false);
+      alert('Failed to submit examination attempt to database: ' + (err.message || 'Unknown network error. Please try again.'));
+    }
+  };
+
   const handleRunCrashCode = () => {
     if (!crashQuestion) return;
     const res = evaluateCodeSubmission(crashCode, crashQuestion.coding.test_cases, crashQuestion.points);
@@ -219,6 +353,7 @@ export default function ExamArena() {
   };
 
   const handleOptionSelect = (questionId: string, optionId: string) => {
+    if (isSubmitting) return;
     setMcqAnswers((prev) => ({ ...prev, [questionId]: optionId }));
   };
 
@@ -262,13 +397,23 @@ export default function ExamArena() {
           </div>
 
           {/* Finish & Submit Button */}
-          <Link
-            href="/summary"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all"
+          <button
+            onClick={handleFinishAndSubmit}
+            disabled={isSubmitting}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Send className="h-3.5 w-3.5" />
-            Finish & Submit
-          </Link>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              <>
+                <Send className="h-3.5 w-3.5" />
+                Finish & Submit
+              </>
+            )}
+          </button>
 
         </div>
       </header>

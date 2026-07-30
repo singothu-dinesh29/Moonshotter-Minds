@@ -71,7 +71,7 @@ export default function SubmissionSummaryPage() {
 
           <div className="space-y-1">
             <span className="text-[10px] text-slate-500 block">COMPLETION TIME</span>
-            <span className="text-lg font-bold text-slate-200">{completionSec > 0 ? formatSeconds(completionSec) : '14m 22s'}</span>
+            <span className="text-lg font-bold text-slate-200">{formatSeconds(completionSec)}</span>
           </div>
 
           <div className="space-y-1 pt-2 border-t border-slate-800/80">
