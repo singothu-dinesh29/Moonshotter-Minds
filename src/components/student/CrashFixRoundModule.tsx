@@ -12,6 +12,7 @@ import {
   getLanguageFileName 
 } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
+import { saveDynamicScorecard } from '@/lib/scoringEngine';
 import { formatSeconds } from '@/lib/utils';
 import { 
   Play, 
@@ -236,9 +237,15 @@ export default function CrashFixRoundModule() {
   const handleManualSubmit = async () => {
     if (confirm('Are you ready to submit your Crash & Fix patches for both questions?')) {
       setIsSubmitting(true);
+      let totalCrashScore = 0;
+      let totalCrashMax = 0;
+
       for (const q of crashQuestions) {
         const activeCode = codeMap[q.id] || q.initialCode;
         const res = evaluateCodeSubmission(activeCode, q.testCases, q.points);
+        totalCrashScore += (res.score || 0);
+        totalCrashMax += (q.points || 50);
+
         await saveStudentCodeSubmission({
           studentId: 'candidate-2026-cs-942',
           questionId: q.id,
@@ -250,6 +257,13 @@ export default function CrashFixRoundModule() {
           submittedAt: new Date().toISOString()
         });
       }
+
+      saveDynamicScorecard({
+        crashFixScore: totalCrashScore,
+        crashFixMaxPoints: totalCrashMax,
+        antiCheatFlags: warningMessage ? 1 : 0
+      });
+
       setTimeout(() => {
         setIsSubmitting(false);
         router.push('/summary');

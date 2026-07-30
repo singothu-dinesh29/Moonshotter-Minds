@@ -5,9 +5,19 @@ import { useParams } from 'next/navigation';
 import { Award, ShieldCheck, CheckCircle2, QrCode, Download, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 
+import { getDynamicScorecard, DynamicScorecard } from '@/lib/scoringEngine';
+
 export default function CertificateVerificationPage() {
   const params = useParams();
   const verifyHash = params.hash as string;
+  const [scorecard, setScorecard] = React.useState<DynamicScorecard | null>(null);
+
+  React.useEffect(() => {
+    setScorecard(getDynamicScorecard());
+  }, []);
+
+  const totalScore = scorecard ? scorecard.totalScore : 0;
+  const totalMax = scorecard ? scorecard.totalMaxPoints : 120;
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center p-4">
@@ -57,7 +67,7 @@ export default function CertificateVerificationPage() {
             </div>
             <div>
               <span className="text-slate-500 block text-[10px]">RANK ACHIEVED</span>
-              <strong className="text-amber-400">Rank #1 (Score: 98/120)</strong>
+              <strong className="text-amber-400">Rank #1 (Score: {totalScore}/{totalMax})</strong>
             </div>
           </div>
         </div>

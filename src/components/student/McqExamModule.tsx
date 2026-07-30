@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+import { saveDynamicScorecard } from '@/lib/scoringEngine';
+
 export default function McqExamModule() {
   const router = useRouter();
   
@@ -76,7 +78,8 @@ export default function McqExamModule() {
               negativePoints: q.negative_points || q.negativeMarks || 0,
               options: rawOpts.map((opt: any) => ({
                 id: opt.id || `opt-${opt.text}`,
-                text: opt.text || opt.option_text || ''
+                text: opt.text || opt.option_text || '',
+                isCorrect: !!opt.is_correct || !!opt.isCorrect
               }))
             };
           });
@@ -125,8 +128,6 @@ export default function McqExamModule() {
     const channel = supabase
       .channel('realtime_student_mcq_arena')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, () => {
-        // Students NOT yet started receive immediate live updates.
-        // Students ALREADY taking exam preserve their assigned question set.
         if (!isExamActiveRef.current) {
           fetchPublishedMcqs();
         }
@@ -182,32 +183,52 @@ export default function McqExamModule() {
     }
   };
 
+  // Compute Dynamic MCQ Score with Positive & Negative Marking
+  const computeMcqScore = () => {
+    let score = 0;
+    let maxPts = 0;
+    questions.forEach((q) => {
+      maxPts += (q.points || 10);
+      const selectedId = answers[q.id];
+      if (selectedId) {
+        const matchedOpt = q.options.find((opt) => opt.id === selectedId);
+        if (matchedOpt && matchedOpt.isCorrect) {
+          score += (q.points || 10);
+        } else if (matchedOpt) {
+          score -= (q.negativePoints || 0);
+        }
+      }
+    });
+    const finalScore = Math.max(0, score);
+    return { finalScore, maxPts };
+  };
+
   const handleAutoSubmit = () => {
     if (isSubmitted) return;
     setIsSubmitted(true);
 
-    // Compute Score
-    let score = 0;
-    questions.forEach((q) => {
-      const selected = answers[q.id];
-      if (selected) {
-        // Option 'a' or first option correct in basic check or calculate score
-        score += q.points;
-      }
+    const { finalScore, maxPts } = computeMcqScore();
+    setSubmittedScore(finalScore);
+    saveDynamicScorecard({
+      mcqScore: finalScore,
+      mcqMaxPoints: maxPts,
+      completionTimeSeconds: 15 * 60 - secondsRemaining
     });
 
-    setSubmittedScore(score);
-    alert('Time expired! Your 15 MCQ answers have been auto-submitted to Supabase PostgreSQL.');
+    alert(`Time expired! MCQ Round submitted. Score: ${finalScore}/${maxPts}`);
   };
 
   const handleManualSubmit = () => {
     if (confirm('Are you sure you want to finish and submit the MCQ examination round?')) {
       setIsSubmitted(true);
-      let score = 0;
-      questions.forEach((q) => {
-        if (answers[q.id]) score += q.points;
+      const { finalScore, maxPts } = computeMcqScore();
+      setSubmittedScore(finalScore);
+      saveDynamicScorecard({
+        mcqScore: finalScore,
+        mcqMaxPoints: maxPts,
+        completionTimeSeconds: 15 * 60 - secondsRemaining
       });
-      setSubmittedScore(score);
+
       router.push('/summary');
     }
   };

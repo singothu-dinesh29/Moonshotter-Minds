@@ -11,6 +11,7 @@ import {
   getLanguageFileName 
 } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
+import { saveDynamicScorecard } from '@/lib/scoringEngine';
 import { formatSeconds } from '@/lib/utils';
 import { 
   Play, 
@@ -257,6 +258,12 @@ export default function DebuggingRoundModule() {
       setIsSubmitting(true);
       const result = evaluateCodeSubmission(code, questionSpec.coding.test_cases, questionSpec.points);
       setEvaluationResult(result);
+
+      saveDynamicScorecard({
+        debuggingScore: result.score || 0,
+        debuggingMaxPoints: questionSpec.points || 40,
+        antiCheatFlags: warningMessage ? 1 : 0
+      });
 
       await saveStudentCodeSubmission({
         studentId: 'candidate-2026-cs-942',

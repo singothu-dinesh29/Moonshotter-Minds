@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { MOCK_EVENT, MOCK_ROUNDS, supabase } from '@/lib/supabase';
 import { formatSeconds } from '@/lib/utils';
+import { getDynamicScorecard, DynamicScorecard } from '@/lib/scoringEngine';
 import { 
   User, 
   School, 
@@ -31,6 +32,23 @@ import {
 export default function StudentDashboardView() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'EVENTS' | 'ROUNDS' | 'SCORES' | 'INBOX' | 'CERTIFICATES' | 'INSTRUCTIONS'>('OVERVIEW');
+
+  const [scorecard, setScorecard] = useState<DynamicScorecard | null>(null);
+
+  useEffect(() => {
+    setScorecard(getDynamicScorecard());
+  }, []);
+
+  const totalScore = scorecard ? scorecard.totalScore : 0;
+  const totalMax = scorecard ? scorecard.totalMaxPoints : 120;
+  const completionSec = scorecard ? scorecard.completionTimeSeconds : 0;
+  const flags = scorecard ? scorecard.antiCheatFlags : 0;
+  const mcqScore = scorecard ? scorecard.mcqScore : 0;
+  const mcqMax = scorecard ? scorecard.mcqMaxPoints : 30;
+  const debugScore = scorecard ? scorecard.debuggingScore : 0;
+  const debugMax = scorecard ? scorecard.debuggingMaxPoints : 40;
+  const crashScore = scorecard ? scorecard.crashFixScore : 0;
+  const crashMax = scorecard ? scorecard.crashFixMaxPoints : 50;
 
   // Pre-exam countdown timer (e.g. 12 minutes countdown to live round start)
   const [lobbyCountdown, setLobbyCountdown] = useState<number>(12 * 60);
@@ -349,15 +367,15 @@ export default function StudentDashboardView() {
               <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 font-mono">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Total Points:</span>
-                  <span className="text-indigo-400 font-bold text-sm">98 / 120</span>
+                  <span className="text-indigo-400 font-bold text-sm">{totalScore} / {totalMax}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Completion Speed:</span>
-                  <span className="text-slate-200">14m 22s</span>
+                  <span className="text-slate-200">{completionSec > 0 ? formatSeconds(completionSec) : '14m 22s'}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-400">Anti-Cheat Flags:</span>
-                  <span className="text-emerald-400">0 Violations</span>
+                  <span className={flags > 0 ? 'text-amber-400 font-bold' : 'text-emerald-400'}>{flags} Violations</span>
                 </div>
               </div>
             </div>
@@ -475,22 +493,22 @@ export default function StudentDashboardView() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 font-mono text-xs">
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
               <span className="text-slate-500 text-[10px]">ROUND 1: SPEED MCQ</span>
-              <div className="text-xl font-bold text-indigo-400">30 / 30 pts</div>
+              <div className="text-xl font-bold text-indigo-400">{mcqScore} / {mcqMax} pts</div>
             </div>
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
               <span className="text-slate-500 text-[10px]">ROUND 2: DEBUGGING</span>
-              <div className="text-xl font-bold text-cyan-400">40 / 40 pts</div>
+              <div className="text-xl font-bold text-cyan-400">{debugScore} / {debugMax} pts</div>
             </div>
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
               <span className="text-slate-500 text-[10px]">ROUND 3: CRASH & FIX</span>
-              <div className="text-xl font-bold text-purple-400">28 / 50 pts</div>
+              <div className="text-xl font-bold text-purple-400">{crashScore} / {crashMax} pts</div>
             </div>
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
               <span className="text-slate-500 text-[10px]">TOTAL AGGREGATE</span>
-              <div className="text-xl font-bold text-emerald-400">98 / 120 pts</div>
+              <div className="text-xl font-bold text-emerald-400">{totalScore} / {totalMax} pts</div>
             </div>
           </div>
         </div>

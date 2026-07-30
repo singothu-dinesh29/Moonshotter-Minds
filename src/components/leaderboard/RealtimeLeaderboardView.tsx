@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LeaderboardRecord, supabase } from '@/lib/supabase';
+import { getDynamicScorecard } from '@/lib/scoringEngine';
 import { Trophy, Medal, Award, Clock, ShieldCheck, Search, RefreshCw, Zap, Sparkles, Activity } from 'lucide-react';
 import Link from 'next/link';
 
@@ -22,25 +23,35 @@ export default function RealtimeLeaderboardView() {
         setLeaderboard(data);
       } else {
         const { data: studentData } = await supabase.from('students').select('*');
+        const activeScorecard = getDynamicScorecard();
+
         if (studentData) {
-          const mapped: LeaderboardRecord[] = studentData.map((s: any, idx: number) => ({
-            id: s.id || `lead-${idx}`,
-            event_id: 'event-2026-main',
-            student_id: s.id,
-            registration_id: s.id,
-            registration: s.registration_number || s.registration || `MIT-2026-${100 + idx}`,
-            name: s.name || 'Candidate',
-            college: s.college || 'Engineering Institute',
-            round_1_score: 30,
-            round_2_score: 40,
-            round_3_score: 50,
-            total_score: 120,
-            completion_time_seconds: 2450,
-            rank: idx + 1,
-            disqualified: s.status === 'Disqualified' || false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }));
+          const mapped: LeaderboardRecord[] = studentData.map((s: any, idx: number) => {
+            const isCurrentCandidate = s.id === 'candidate-2026-cs-942' || idx === 0;
+            const r1 = isCurrentCandidate ? activeScorecard.mcqScore : 0;
+            const r2 = isCurrentCandidate ? activeScorecard.debuggingScore : 0;
+            const r3 = isCurrentCandidate ? activeScorecard.crashFixScore : 0;
+            const total = r1 + r2 + r3;
+
+            return {
+              id: s.id || `lead-${idx}`,
+              event_id: 'event-2026-main',
+              student_id: s.id,
+              registration_id: s.id,
+              registration: s.registration_number || s.registration || `MIT-2026-${100 + idx}`,
+              name: s.name || 'Candidate',
+              college: s.college || 'Engineering Institute',
+              round_1_score: r1,
+              round_2_score: r2,
+              round_3_score: r3,
+              total_score: total,
+              completion_time_seconds: isCurrentCandidate ? activeScorecard.completionTimeSeconds : 0,
+              rank: idx + 1,
+              disqualified: s.status === 'Disqualified' || false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          });
           setLeaderboard(mapped);
         }
       }
