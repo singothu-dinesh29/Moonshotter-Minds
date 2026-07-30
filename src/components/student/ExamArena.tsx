@@ -10,6 +10,7 @@ import {
 import { AntiCheatMonitor, AntiCheatIncident } from '@/lib/anticheat';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
+import { getActiveExamSession, getRemainingExamSeconds, startExamSession } from '@/lib/examSession';
 import { 
   Play, 
   CheckCircle, 
@@ -155,21 +156,45 @@ export default function ExamArena() {
     return () => monitor.stop();
   }, []);
 
+  // Initialize Exam Session Timer & Restore Remaining Time on Refresh
+  useEffect(() => {
+    let activeSession = getActiveExamSession('candidate-2026-cs-942');
+    if (!activeSession) {
+      startExamSession(45 * 60, 'candidate-2026-cs-942').then((s) => {
+        setSecondsRemaining(getRemainingExamSeconds(s));
+      });
+    } else {
+      const rem = getRemainingExamSeconds(activeSession);
+      setSecondsRemaining(rem);
+      if (rem <= 0) setIsExamActive(false);
+    }
+  }, []);
+
   // Timer Countdown Effect
   useEffect(() => {
-    if (!isExamActive || secondsRemaining <= 0) return;
+    if (!isExamActive) return;
     const interval = setInterval(() => {
-      setSecondsRemaining((prev) => {
-        if (prev <= 1) {
+      const activeSession = getActiveExamSession('candidate-2026-cs-942');
+      if (activeSession) {
+        const rem = getRemainingExamSeconds(activeSession);
+        setSecondsRemaining(rem);
+        if (rem <= 0) {
           setIsExamActive(false);
-          return 0;
+          clearInterval(interval);
         }
-        return prev - 1;
-      });
+      } else {
+        setSecondsRemaining((prev) => {
+          if (prev <= 1) {
+            setIsExamActive(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isExamActive, secondsRemaining]);
+  }, [isExamActive]);
 
   // Code Evaluation Handler
   const handleRunDebugCode = () => {

@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { MOCK_EVENT, MOCK_ROUNDS, supabase } from '@/lib/supabase';
-import { formatSeconds } from '@/lib/utils';
+import { formatSeconds, formatHHMMSS } from '@/lib/utils';
 import { getDynamicScorecard, calculatePublishedQuestionsMaxScore, DynamicScorecard } from '@/lib/scoringEngine';
+import { getActiveExamSession, getRemainingExamSeconds, startExamSession, getConfiguredExamDurationSeconds } from '@/lib/examSession';
 import { 
   User, 
   School, 
@@ -26,10 +28,12 @@ import {
   ExternalLink,
   Flame,
   Bell,
-  ArrowRight
+  ArrowRight,
+  AlertCircle
 } from 'lucide-react';
 
 export default function StudentDashboardView() {
+  const router = useRouter();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'EVENTS' | 'ROUNDS' | 'SCORES' | 'INBOX' | 'CERTIFICATES' | 'INSTRUCTIONS'>('OVERVIEW');
 
@@ -59,8 +63,7 @@ export default function StudentDashboardView() {
   const crashScore = scorecard ? scorecard.crashFixScore : 0;
   const crashMax = scorecard ? scorecard.crashFixMaxPoints : 0;
 
-  // Pre-exam countdown timer (e.g. 12 minutes countdown to live round start)
-  const [lobbyCountdown, setLobbyCountdown] = useState<number>(12 * 60);
+
 
   // Live Dynamic Round Specifications State loaded from Supabase
   const [roundsData, setRoundsData] = useState<any[]>([
@@ -211,12 +214,65 @@ export default function StudentDashboardView() {
     };
   }, []);
 
+  // Lobby & Exam Session State
+  const [configuredDuration, setConfiguredDuration] = useState<number>(45 * 60);
+  const [lobbyCountdown, setLobbyCountdown] = useState<number>(45 * 60);
+  const [isExamStarted, setIsExamStarted] = useState<boolean>(false);
+  const [showStartConfirmationModal, setShowStartConfirmationModal] = useState<boolean>(false);
+  const [pendingArenaHref, setPendingArenaHref] = useState<string>('/arena/evt-symposium-2026');
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setLobbyCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
+    async function loadTimerConfig() {
+      const durationSec = await getConfiguredExamDurationSeconds();
+      setConfiguredDuration(durationSec);
+
+      const activeSession = getActiveExamSession('candidate-2026-cs-942');
+      if (activeSession && activeSession.isStarted) {
+        setIsExamStarted(true);
+        const rem = getRemainingExamSeconds(activeSession);
+        setLobbyCountdown(rem);
+      } else {
+        setIsExamStarted(false);
+        setLobbyCountdown(durationSec);
+      }
+    }
+    loadTimerConfig();
   }, []);
+
+  // ONLY run countdown interval IF the student has explicitly started the exam
+  useEffect(() => {
+    if (!isExamStarted) return; // Completely PAUSED while student is in the lobby
+
+    const timer = setInterval(() => {
+      const activeSession = getActiveExamSession('candidate-2026-cs-942');
+      if (activeSession) {
+        const rem = getRemainingExamSeconds(activeSession);
+        setLobbyCountdown(rem);
+        if (rem <= 0) {
+          clearInterval(timer);
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isExamStarted]);
+
+  const handleStartExamClick = (href: string) => {
+    const activeSession = getActiveExamSession('candidate-2026-cs-942');
+    if (activeSession && activeSession.isStarted) {
+      router.push(href);
+    } else {
+      setPendingArenaHref(href);
+      setShowStartConfirmationModal(true);
+    }
+  };
+
+  const handleConfirmStartExam = async () => {
+    setShowStartConfirmationModal(false);
+    await startExamSession(configuredDuration, 'candidate-2026-cs-942');
+    setIsExamStarted(true);
+    router.push(pendingArenaHref || '/arena/evt-symposium-2026');
+  };
 
   const [candidateRank, setCandidateRank] = useState<any>({ rank: 1, total_score: 120 });
 
@@ -265,18 +321,19 @@ export default function StudentDashboardView() {
           <div className="bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 text-center font-mono">
             <span className="text-[10px] text-slate-500 block">LOBBY COUNTDOWN</span>
             <span className="text-sm font-bold text-indigo-400 flex items-center gap-1">
-              <Clock className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '4s' }} />
-              {formatSeconds(lobbyCountdown)}
+              <Clock className={`h-3.5 w-3.5 ${isExamStarted ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
+              {formatHHMMSS(lobbyCountdown)}
+              {!isExamStarted && <span className="text-[10px] text-amber-400 font-semibold ml-1">(PAUSED)</span>}
             </span>
           </div>
 
-          <Link
-            href="/arena/evt-symposium-2026"
+          <button
+            onClick={() => handleStartExamClick('/arena/evt-symposium-2026')}
             className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-500 text-white font-bold text-xs shadow-xl shadow-indigo-600/30 hover:scale-[1.02] transition-all"
           >
             <Flame className="h-4 w-4 text-amber-300 fill-current" />
             Enter Exam Arena
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -352,12 +409,12 @@ export default function StudentDashboardView() {
                 <ShieldCheck className="h-4 w-4 text-emerald-400" /> System Hardware Check: <strong className="text-white font-mono">100% READY</strong>
               </span>
 
-              <Link
-                href="/arena/evt-symposium-2026"
+              <button
+                onClick={() => handleStartExamClick('/arena/evt-symposium-2026')}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow"
               >
                 Launch Arena
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -414,12 +471,12 @@ export default function StudentDashboardView() {
               <p className="text-xs text-slate-400 mt-1">Status: Registered Candidate | Entry Pass Granted</p>
             </div>
 
-            <Link
-              href="/arena/evt-symposium-2026"
+            <button
+              onClick={() => handleStartExamClick('/arena/evt-symposium-2026')}
               className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-all shadow"
             >
               Enter Exam Arena
-            </Link>
+            </button>
           </div>
         </div>
       )}
@@ -482,13 +539,13 @@ export default function StudentDashboardView() {
               </div>
 
               {/* DYNAMIC LAUNCH ARENA BUTTON */}
-              <Link
-                href={r.href}
+              <button
+                onClick={() => handleStartExamClick(r.href)}
                 className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all mt-4"
               >
                 <span>Launch {r.number} Arena</span>
                 <ArrowRight className="h-4 w-4" />
-              </Link>
+              </button>
             </div>
           ))}
         </div>
@@ -586,8 +643,47 @@ export default function StudentDashboardView() {
             <li>Fullscreen mode is mandatory during active competition rounds.</li>
             <li>Exceeding 3 window blur or tab switch incidents results in automated candidate session disqualification.</li>
             <li>Clipboard paste functionality is locked inside the code editor to enforce original code authoring.</li>
-            <li>Timers are server-anchored; modifying local browser time will not extend exam duration.</li>
           </ul>
+        </div>
+      )}
+
+      {/* START EXAMINATION CONFIRMATION DIALOG MODAL */}
+      {showStartConfirmationModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="max-w-md w-full bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-2xl space-y-5 relative">
+            <div className="flex items-center gap-3.5">
+              <div className="h-11 w-11 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-white tracking-tight">Start Examination Confirmation</h3>
+                <p className="text-[11px] font-mono text-slate-400">Symposium National Technical Grand Prix 2026</p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-slate-300 leading-relaxed font-sans bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+              Once you enter the exam, the timer will start immediately and cannot be paused. Do you want to continue?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowStartConfirmationModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition-all"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmStartExam}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-1.5"
+              >
+                <span>Start Exam</span>
+                <Flame className="h-3.5 w-3.5 text-amber-300 fill-current" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -11,6 +11,19 @@ export function formatSeconds(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
+export function formatHHMMSS(totalSeconds: number): string {
+  if (isNaN(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const hh = String(hours).padStart(2, '0');
+  const mm = String(minutes).padStart(2, '0');
+  const ss = String(seconds).padStart(2, '0');
+
+  return `${hh}:${mm}:${ss}`;
+}
+
 export function generateHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
