@@ -181,3 +181,55 @@ export function sortLeaderboardRecords<T extends Record<string, any>>(records: T
     rank: idx + 1
   }));
 }
+
+/**
+ * Universal, case-insensitive question publisher and round filter.
+ * Guarantees 100% data flow parity between Admin, Dashboard, and Arena.
+ */
+export function isQuestionPublishedForRound(q: any, targetRound: 'MCQ' | 'DEBUGGING' | 'CRASH_FIX'): boolean {
+  if (!q) return false;
+
+  const status = (q.status || '').toString().trim().toUpperCase();
+  if (status !== 'PUBLISHED') return false;
+
+  const type = (q.type || '').toString().trim().toUpperCase();
+  const round = (q.round || '').toString().trim().toUpperCase();
+  const roundId = (q.round_id || '').toString().trim().toLowerCase();
+
+  if (targetRound === 'MCQ') {
+    return (
+      type === 'MCQ' ||
+      type.includes('MCQ') ||
+      roundId === 'round-1' ||
+      round.includes('MCQ') ||
+      round.includes('ROUND 1') ||
+      round.includes('ROUND 01') ||
+      !q.type
+    );
+  }
+
+  if (targetRound === 'DEBUGGING') {
+    return (
+      type === 'DEBUGGING' ||
+      type.includes('DEBUG') ||
+      roundId === 'round-2' ||
+      round.includes('DEBUG') ||
+      round.includes('ROUND 2') ||
+      round.includes('ROUND 02')
+    );
+  }
+
+  if (targetRound === 'CRASH_FIX') {
+    return (
+      type === 'CRASH & FIX' ||
+      type === 'CRASH_FIX' ||
+      type.includes('CRASH') ||
+      roundId === 'round-3' ||
+      round.includes('CRASH') ||
+      round.includes('ROUND 3') ||
+      round.includes('ROUND 03')
+    );
+  }
+
+  return false;
+}

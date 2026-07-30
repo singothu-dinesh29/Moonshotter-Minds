@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-import { saveDynamicScorecard } from '@/lib/scoringEngine';
+import { saveDynamicScorecard, isQuestionPublishedForRound } from '@/lib/scoringEngine';
 
 export default function McqExamModule() {
   const router = useRouter();
@@ -51,11 +51,7 @@ export default function McqExamModule() {
 
       if (!error && data) {
         // Strict Visibility Policy: Only Published questions are visible to students
-        const publishedMcqs = data.filter(
-          (q: any) =>
-            (q.status === 'PUBLISHED' || q.status === 'Published') &&
-            (q.type === 'MCQ' || q.round_id === 'round-1' || !q.type)
-        );
+        const publishedMcqs = data.filter((q: any) => isQuestionPublishedForRound(q, 'MCQ'));
 
         if (publishedMcqs.length > 0) {
           const mapped: MCQItem[] = publishedMcqs.map((q: any, idx: number) => {

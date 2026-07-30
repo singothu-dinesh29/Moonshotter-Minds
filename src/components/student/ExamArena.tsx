@@ -11,6 +11,7 @@ import { AntiCheatMonitor, AntiCheatIncident } from '@/lib/anticheat';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
 import { formatSeconds } from '@/lib/utils';
 import { getActiveExamSession, getRemainingExamSeconds, startExamSession } from '@/lib/examSession';
+import { isQuestionPublishedForRound } from '@/lib/scoringEngine';
 import { 
   Play, 
   CheckCircle, 
@@ -58,27 +59,35 @@ export default function ExamArena() {
 
   const fetchPublishedQuestions = async () => {
     try {
+      const { data: dbOptions } = await supabase.from('mcq_options').select('*');
       const { data } = await supabase.from('questions').select('*');
+
       if (data) {
-        const published = data.filter((q: any) => q.status === 'PUBLISHED' || q.status === 'Published');
-        
         // MCQ Questions
-        const mcqs = published.filter((q: any) => q.type === 'MCQ' || q.round_id === 'round-1');
-        const mappedMcqs = mcqs.map((q: any) => ({
-          id: q.id,
-          title: q.title,
-          content_markdown: q.content_markdown || q.description || '',
-          points: q.points || q.marks || 10,
-          negative_points: q.negative_points || q.negativeMarks || 0,
-          options: (q.mcq_options || q.mcqOptions || []).map((o: any) => ({
-            id: o.id || `opt-${o.text}`,
-            option_text: o.text || o.option_text || ''
-          }))
-        }));
+        const mcqs = data.filter((q: any) => isQuestionPublishedForRound(q, 'MCQ'));
+        const mappedMcqs = mcqs.map((q: any) => {
+          let opts = (q.mcq_options || q.mcqOptions || []);
+          if ((!opts || opts.length === 0) && dbOptions && dbOptions.length > 0) {
+            const matched = dbOptions.filter((opt: any) => opt.question_id === q.id);
+            if (matched.length > 0) opts = matched;
+          }
+
+          return {
+            id: q.id,
+            title: q.title,
+            content_markdown: q.content_markdown || q.description || '',
+            points: q.points || q.marks || 10,
+            negative_points: q.negative_points || q.negativeMarks || 0,
+            options: opts.map((o: any) => ({
+              id: o.id || `opt-${o.text || o.option_text}`,
+              option_text: o.text || o.option_text || ''
+            }))
+          };
+        });
         setMcqQuestions(mappedMcqs);
 
         // Debugging Question
-        const debugs = published.filter((q: any) => q.type === 'Debugging' || q.round_id === 'round-2');
+        const debugs = data.filter((q: any) => isQuestionPublishedForRound(q, 'DEBUGGING'));
         if (debugs.length > 0) {
           const dq = debugs[0];
           setDebugQuestion({
@@ -87,20 +96,20 @@ export default function ExamArena() {
             content_markdown: dq.content_markdown || dq.description || '',
             points: dq.points || dq.marks || 40,
             coding: {
-              initial_code: dq.reference_solution || dq.referenceSolution || '',
-              test_cases: [
+              initial_code: dq.reference_solution || dq.referenceSolution || dq.buggy_code || dq.buggyCode || '',
+              test_cases: dq.test_cases || dq.testCases || [
                 { input: 'twoSum([2, 7, 11, 15], 9)', expected_output: '[0,1]' },
                 { input: 'twoSum([3, 2, 4], 6)', expected_output: '[1,2]' }
               ]
             }
           });
-          setDebugCode(dq.reference_solution || dq.referenceSolution || '');
+          setDebugCode(dq.reference_solution || dq.referenceSolution || dq.buggy_code || dq.buggyCode || '');
         } else {
           setDebugQuestion(null);
         }
 
         // Crash Question
-        const crashes = published.filter((q: any) => q.type === 'Crash & Fix' || q.round_id === 'round-3');
+        const crashes = data.filter((q: any) => isQuestionPublishedForRound(q, 'CRASH_FIX'));
         if (crashes.length > 0) {
           const cq = crashes[0];
           setCrashQuestion({
@@ -109,13 +118,13 @@ export default function ExamArena() {
             content_markdown: cq.content_markdown || cq.description || '',
             points: cq.points || cq.marks || 50,
             coding: {
-              initial_code: cq.reference_solution || cq.referenceSolution || '',
-              test_cases: [
+              initial_code: cq.reference_solution || cq.referenceSolution || cq.buggy_code || cq.buggyCode || '',
+              test_cases: cq.test_cases || cq.testCases || [
                 { input: 'maxDepth(node)', expected_output: '0' }
               ]
             }
           });
-          setCrashCode(cq.reference_solution || cq.referenceSolution || '');
+          setCrashCode(cq.reference_solution || cq.referenceSolution || cq.buggy_code || cq.buggyCode || '');
         } else {
           setCrashQuestion(null);
         }

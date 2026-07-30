@@ -362,12 +362,15 @@ export async function createExamSnapshot(payload: {
 }
 
 export async function fetchExamSnapshot(studentId: string, round: string) {
-  // Check sessionStorage first for instant load
+  // Check sessionStorage first for instant load if non-empty
   if (typeof window !== 'undefined') {
     const local = sessionStorage.getItem(`exam_snapshot_${studentId}_${round}`);
     if (local) {
       try {
-        return JSON.parse(local);
+        const parsed = JSON.parse(local);
+        if (parsed && Array.isArray(parsed.snapshot_data) && parsed.snapshot_data.length > 0) {
+          return parsed;
+        }
       } catch (e) {}
     }
   }
@@ -382,7 +385,7 @@ export async function fetchExamSnapshot(studentId: string, round: string) {
       .order('created_at', { ascending: false })
       .limit(1);
 
-    if (data && data.length > 0) {
+    if (data && data.length > 0 && Array.isArray(data[0].snapshot_data) && data[0].snapshot_data.length > 0) {
       if (typeof window !== 'undefined') {
         sessionStorage.setItem(`exam_snapshot_${studentId}_${round}`, JSON.stringify(data[0]));
       }

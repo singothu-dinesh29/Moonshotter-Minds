@@ -11,7 +11,7 @@ import {
   getLanguageFileName 
 } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
-import { saveDynamicScorecard } from '@/lib/scoringEngine';
+import { saveDynamicScorecard, isQuestionPublishedForRound } from '@/lib/scoringEngine';
 import { formatSeconds } from '@/lib/utils';
 import { 
   Play, 
@@ -36,6 +36,10 @@ export default function DebuggingRoundModule() {
   const [questionSpec, setQuestionSpec] = useState<any>(null);
   const [code, setCode] = useState<string>('');
   const [language, setLanguage] = useState<string>('javascript');
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(15 * 60);
+  const [isExamActive, setIsExamActive] = useState<boolean>(true);
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+  const [submittedScore, setSubmittedScore] = useState<number | null>(null);
 
   const isExamActiveRef = React.useRef(false);
 
@@ -47,11 +51,7 @@ export default function DebuggingRoundModule() {
 
       if (!error && data) {
         // Strict Visibility Policy: Only Published Debugging questions are visible
-        const published = data.filter(
-          (q: any) =>
-            (q.status === 'PUBLISHED' || q.status === 'Published') &&
-            (q.type === 'Debugging' || q.round_id === 'round-2')
-        );
+        const published = data.filter((q: any) => isQuestionPublishedForRound(q, 'DEBUGGING'));
 
         if (published.length > 0) {
           const q = published[0];
@@ -139,9 +139,7 @@ export default function DebuggingRoundModule() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<string>('Saved');
 
-  // Timer State (15 Mins = 900 seconds)
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(15 * 60);
-  const [isExamActive, setIsExamActive] = useState<boolean>(true);
+
 
   // Anti-Cheat Security Violation Alerts
   const [warningMessage, setWarningMessage] = useState<string | null>(null);

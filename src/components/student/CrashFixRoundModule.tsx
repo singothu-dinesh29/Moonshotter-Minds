@@ -12,7 +12,7 @@ import {
   getLanguageFileName 
 } from '@/lib/supabase';
 import { evaluateCodeSubmission, EvaluationResult } from '@/lib/evaluator';
-import { saveDynamicScorecard } from '@/lib/scoringEngine';
+import { saveDynamicScorecard, isQuestionPublishedForRound } from '@/lib/scoringEngine';
 import { formatSeconds } from '@/lib/utils';
 import { 
   Play, 
@@ -49,11 +49,7 @@ export default function CrashFixRoundModule() {
 
       if (!error && data) {
         // Strict Visibility Policy: Only Published Crash & Fix questions are visible to students
-        const published = data.filter(
-          (q: any) =>
-            (q.status === 'PUBLISHED' || q.status === 'Published') &&
-            (q.type === 'Crash & Fix' || q.round_id === 'round-3')
-        );
+        const published = data.filter((q: any) => isQuestionPublishedForRound(q, 'CRASH_FIX'));
 
         if (published.length > 0) {
           const mapped: CrashQuestionItem[] = published.map((q: any) => ({
