@@ -12,7 +12,7 @@ export function formatSeconds(seconds: number): string {
 }
 
 export function formatHHMMSS(totalSeconds: number): string {
-  if (isNaN(totalSeconds) || totalSeconds < 0) totalSeconds = 0;
+  if (isNaN(totalSeconds) || totalSeconds <= 0) return '1:00:00';
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;

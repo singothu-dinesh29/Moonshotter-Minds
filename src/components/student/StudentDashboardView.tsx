@@ -275,16 +275,18 @@ export default function StudentDashboardView() {
       if (activeStudentId) {
         const activeSession = getActiveExamSession(activeStudentId);
         if (activeSession && activeSession.isStarted) {
-          setIsExamStarted(true);
           const rem = getRemainingExamSeconds(activeSession);
-          setLobbyCountdown(rem);
-          return;
+          if (rem > 0) {
+            setIsExamStarted(true);
+            setLobbyCountdown(rem);
+            return;
+          }
         }
       }
 
-      // In Lobby: Display static configured duration (01:00:00) without counting down!
+      // In Lobby: Display static 1:00:00 without counting down!
       setIsExamStarted(false);
-      setLobbyCountdown(targetDuration);
+      setLobbyCountdown(targetDuration > 0 ? targetDuration : 3600);
     }
     loadTimerConfig();
   }, [user]);

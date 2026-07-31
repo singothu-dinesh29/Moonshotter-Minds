@@ -92,10 +92,10 @@ export async function getConfiguredExamDurationSeconds(): Promise<number> {
     const { data: rounds } = await supabase.from('rounds').select('duration_minutes');
     if (rounds && rounds.length > 0) {
       const totalMins = rounds.reduce((sum: number, r: any) => sum + (r.duration_minutes || 0), 0);
-      if (totalMins > 0) return totalMins * 60;
+      if (totalMins > 0) return Math.max(3600, totalMins * 60);
     }
   } catch (e) {}
 
-  // Fallback to 60 minutes (3600 seconds) if no custom admin rounds configured
-  return 60 * 60;
+  // Fallback to 60 minutes (3600 seconds)
+  return 3600;
 }
